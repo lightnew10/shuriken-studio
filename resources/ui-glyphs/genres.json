@@ -1,0 +1,1205 @@
+{
+  "version": 1,
+  "genres": {
+    "pet-simulator": {
+      "label": "Pet Simulator",
+      "examples": "games like Pet Simulator 99, Pet Simulator X",
+      "direction": "candy",
+      "alt": "kawaii",
+      "accent": "#ff5fa2",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Puppy Egg", "icon": "egg", "rarity": "common"},
+        {"name": "Bunny Pet", "icon": "rabbit", "rarity": "common"},
+        {"name": "Kitten Pet", "icon": "cat", "rarity": "rare"},
+        {"name": "Panda Pet", "icon": "panda", "rarity": "rare"},
+        {"name": "Unicorn Pet", "icon": "star", "rarity": "epic"},
+        {"name": "Golden Boost", "icon": "boost", "rarity": "epic"},
+        {"name": "Crystal Dragon", "icon": "crystal", "rarity": "legendary"},
+        {"name": "Mythic Phoenix", "icon": "wings", "rarity": "mythic"}
+      ],
+      "tabs": ["Eggs", "Pets", "Passes"],
+      "screens": ["shop", "inventory", "collection", "hud-simulator", "daily-rewards", "codes", "leaderboard"]
+    },
+    "clicker-simulator": {
+      "label": "Clicker Simulator",
+      "examples": "games like Clicker Simulator, Tapping Simulator Ultimate, Muscle Legends",
+      "direction": "candy",
+      "alt": "ember",
+      "accent": "#ff8a00",
+      "currencies": [{"name": "Strength", "icon": "dumbbell"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Wooden Dumbbell", "icon": "dumbbell", "rarity": "common"},
+        {"name": "Gym Shorts", "icon": "shirt", "rarity": "common"},
+        {"name": "Iron Weights", "icon": "weight", "rarity": "rare"},
+        {"name": "Power Gloves", "icon": "hand-fist", "rarity": "rare"},
+        {"name": "Energy Drink", "icon": "potion", "rarity": "epic"},
+        {"name": "Rocket Boots", "icon": "rocket", "rarity": "epic"},
+        {"name": "Lightning Aura", "icon": "lightning", "rarity": "legendary"},
+        {"name": "Titan Armor", "icon": "shield", "rarity": "mythic"}
+      ],
+      "tabs": ["Training", "Gear", "Rebirth"],
+      "screens": ["shop", "inventory", "hud-simulator", "daily-rewards", "leaderboard", "codes", "toasts"]
+    },
+    "mining-simulator": {
+      "label": "Mining Simulator",
+      "examples": "games like Mining Simulator 2, Mining Simulator",
+      "direction": "candy",
+      "alt": "grunge",
+      "accent": "#8d6e63",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Stone Pickaxe", "icon": "pickaxe", "rarity": "common"},
+        {"name": "Copper Ore", "icon": "mountain", "rarity": "common"},
+        {"name": "Iron Drill", "icon": "hammer", "rarity": "rare"},
+        {"name": "Gold Nugget", "icon": "coin", "rarity": "rare"},
+        {"name": "Diamond Drill", "icon": "gem", "rarity": "epic"},
+        {"name": "Ruby Crystal", "icon": "crystal", "rarity": "epic"},
+        {"name": "Dragon Pickaxe", "icon": "flame", "rarity": "legendary"},
+        {"name": "Mythic Core", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Pickaxes", "Ores", "Upgrades"],
+      "screens": ["shop", "inventory", "collection", "hud-simulator", "daily-rewards", "codes", "leaderboard"]
+    },
+    "minigame-party": {
+      "label": "Minigame Party",
+      "examples": "games like Epic Minigames, Party!!! at Olivia's Place",
+      "direction": "candy",
+      "alt": "toybox",
+      "accent": "#f43f5e",
+      "currencies": [{"name": "Tickets", "icon": "ticket"}, {"name": "Coins", "icon": "coins"}],
+      "items": [
+        {"name": "Party Hat", "icon": "party-popper", "rarity": "common"},
+        {"name": "Bubble Gun", "icon": "bubbles", "rarity": "common"},
+        {"name": "Rubber Duck", "icon": "bird", "rarity": "rare"},
+        {"name": "Confetti Cannon", "icon": "sparkles", "rarity": "rare"},
+        {"name": "Crown Hat", "icon": "crown", "rarity": "epic"},
+        {"name": "Winner Medal", "icon": "medal", "rarity": "epic"},
+        {"name": "Champion Trophy", "icon": "trophy", "rarity": "legendary"},
+        {"name": "Disco Orb", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Cosmetics", "Tickets", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "round-end", "daily-rewards", "toasts"]
+    },
+    "adopt-and-raise": {
+      "label": "Adopt & Raise",
+      "examples": "games like Adopt Me!, Horse World",
+      "direction": "kawaii",
+      "alt": "candy",
+      "accent": "#ff9ec7",
+      "currencies": [{"name": "Bucks", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Puppy Pal", "icon": "paw", "rarity": "common"},
+        {"name": "Bunny Friend", "icon": "rabbit", "rarity": "common"},
+        {"name": "Cupcake Treat", "icon": "cake", "rarity": "rare"},
+        {"name": "Kitty Friend", "icon": "cat", "rarity": "rare"},
+        {"name": "Rainbow Unicorn", "icon": "rainbow", "rarity": "epic"},
+        {"name": "Dragon Egg", "icon": "egg", "rarity": "epic"},
+        {"name": "Royal Crown", "icon": "crown", "rarity": "legendary"},
+        {"name": "Starlight Fox", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Pets", "Food", "Houses"],
+      "screens": ["shop", "inventory", "collection", "daily-rewards", "codes", "profile"]
+    },
+    "fishing": {
+      "label": "Fishing",
+      "examples": "games like Fisch, Fish It!",
+      "direction": "aqua",
+      "alt": "forest",
+      "accent": "#1aa3c6",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Common Fish", "icon": "fish", "rarity": "common"},
+        {"name": "Shrimp Bait", "icon": "shrimp", "rarity": "common"},
+        {"name": "Bamboo Rod", "icon": "fishing-rod", "rarity": "rare"},
+        {"name": "Silver Trout", "icon": "fish", "rarity": "rare"},
+        {"name": "Golden Carp", "icon": "fish-symbol", "rarity": "epic"},
+        {"name": "Turbo Hook", "icon": "fishing-hook", "rarity": "epic"},
+        {"name": "Sunken Anchor", "icon": "anchor", "rarity": "legendary"},
+        {"name": "Mythic Leviathan", "icon": "shell", "rarity": "mythic"}
+      ],
+      "tabs": ["Rods", "Bait", "Fish"],
+      "screens": ["shop", "inventory", "collection", "daily-rewards", "quest-log", "leaderboard"]
+    },
+    "farming": {
+      "label": "Farming",
+      "examples": "games like Bee Swarm Simulator, Grow a Garden",
+      "direction": "forest",
+      "alt": "kawaii",
+      "accent": "#4caf50",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Wheat Seeds", "icon": "wheat", "rarity": "common"},
+        {"name": "Carrot", "icon": "carrot", "rarity": "common"},
+        {"name": "Corn Seeds", "icon": "sprout", "rarity": "rare"},
+        {"name": "Tomato", "icon": "apple", "rarity": "rare"},
+        {"name": "Golden Hen", "icon": "egg", "rarity": "epic"},
+        {"name": "Cow", "icon": "beef", "rarity": "epic"},
+        {"name": "Tractor", "icon": "tractor", "rarity": "legendary"},
+        {"name": "Rainbow Harvest", "icon": "rainbow", "rarity": "mythic"}
+      ],
+      "tabs": ["Seeds", "Animals", "Tools"],
+      "screens": ["shop", "inventory", "collection", "daily-rewards", "quest-log", "codes"]
+    },
+    "gardening": {
+      "label": "Gardening",
+      "examples": "games like Grow a Garden, Plants vs Brainrots",
+      "direction": "forest",
+      "alt": "kawaii",
+      "accent": "#2e9e5b",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Carrot Seed", "icon": "carrot", "rarity": "common"},
+        {"name": "Sunflower", "icon": "flower-2", "rarity": "common"},
+        {"name": "Tulip", "icon": "flower", "rarity": "rare"},
+        {"name": "Watering Can", "icon": "droplets", "rarity": "rare"},
+        {"name": "Rose Bush", "icon": "rose", "rarity": "epic"},
+        {"name": "Cactus", "icon": "leaf", "rarity": "epic"},
+        {"name": "Golden Apple", "icon": "apple", "rarity": "legendary"},
+        {"name": "Mythic Bloom", "icon": "clover", "rarity": "mythic"}
+      ],
+      "tabs": ["Seeds", "Tools", "Shop"],
+      "screens": ["shop", "inventory", "collection", "daily-rewards", "quest-log", "codes"]
+    },
+    "cooking": {
+      "label": "Cooking",
+      "examples": "games like Cook Burgers, Work at a Pizza Place",
+      "direction": "kawaii",
+      "alt": "frost",
+      "accent": "#ff7043",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Plain Burger", "icon": "hamburger", "rarity": "common"},
+        {"name": "Cheese Pizza", "icon": "pizza", "rarity": "common"},
+        {"name": "Chef Knife", "icon": "utensils", "rarity": "rare"},
+        {"name": "Golden Fryer", "icon": "cooking-pot", "rarity": "rare"},
+        {"name": "Cake Slice", "icon": "cake", "rarity": "epic"},
+        {"name": "Ramen Bowl", "icon": "soup", "rarity": "epic"},
+        {"name": "Dragon Drumstick", "icon": "drumstick", "rarity": "legendary"},
+        {"name": "Mythic Chef Hat", "icon": "chef-hat", "rarity": "mythic"}
+      ],
+      "tabs": ["Recipes", "Ingredients", "Kitchen"],
+      "screens": ["shop", "inventory", "collection", "quest-log", "daily-rewards", "leaderboard"]
+    },
+    "fashion-dress-up": {
+      "label": "Fashion & Dress-Up",
+      "examples": "games like Dress to Impress, Royale High, MeepCity",
+      "direction": "royal",
+      "alt": "kawaii",
+      "accent": "#c2185b",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Denim Jacket", "icon": "shirt", "rarity": "common"},
+        {"name": "Sneakers", "icon": "sport-shoe", "rarity": "common"},
+        {"name": "Sunglasses", "icon": "glasses", "rarity": "rare"},
+        {"name": "Bow Headband", "icon": "ribbon", "rarity": "rare"},
+        {"name": "Velvet Gown", "icon": "rose", "rarity": "epic"},
+        {"name": "Designer Handbag", "icon": "handbag", "rarity": "epic"},
+        {"name": "Diamond Tiara", "icon": "crown", "rarity": "legendary"},
+        {"name": "Mythic Wings Set", "icon": "wings", "rarity": "mythic"}
+      ],
+      "tabs": ["Clothes", "Accessories", "Passes"],
+      "screens": ["shop", "inventory", "collection", "profile", "daily-rewards", "leaderboard"]
+    },
+    "beauty-pageant": {
+      "label": "Beauty Pageant",
+      "examples": "games like Dress to Impress, Royale High",
+      "direction": "royal",
+      "alt": "candy",
+      "accent": "#b03a8c",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Pageant Sash", "icon": "ribbon", "rarity": "common"},
+        {"name": "Makeup Kit", "icon": "palette", "rarity": "common"},
+        {"name": "Pageant Gown", "icon": "shirt", "rarity": "rare"},
+        {"name": "Stiletto Heels", "icon": "footprints", "rarity": "rare"},
+        {"name": "Silver Tiara", "icon": "crown", "rarity": "epic"},
+        {"name": "Pageant Medal", "icon": "medal", "rarity": "epic"},
+        {"name": "Golden Crown", "icon": "trophy", "rarity": "legendary"},
+        {"name": "Mythic Spotlight Crown", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Outfits", "Titles", "Passes"],
+      "screens": ["shop", "inventory", "collection", "title", "leaderboard", "round-end", "profile"]
+    },
+    "pet-cafe": {
+      "label": "Pet Café",
+      "examples": "games like Adopt Me!, Horse World",
+      "direction": "kawaii",
+      "alt": "frost",
+      "accent": "#c9a9e9",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Hearts", "icon": "heart"}],
+      "items": [
+        {"name": "Latte", "icon": "coffee", "rarity": "common"},
+        {"name": "Cupcake", "icon": "cupcake", "rarity": "common"},
+        {"name": "Cat Plush", "icon": "cat", "rarity": "rare"},
+        {"name": "Bunny Pet", "icon": "rabbit", "rarity": "rare"},
+        {"name": "Golden Teacup", "icon": "milk", "rarity": "epic"},
+        {"name": "Cafe Armchair", "icon": "armchair", "rarity": "epic"},
+        {"name": "Rainbow Latte", "icon": "rainbow", "rarity": "legendary"},
+        {"name": "Cloud Kitty", "icon": "cloud", "rarity": "mythic"}
+      ],
+      "tabs": ["Menu", "Pets", "Decor"],
+      "screens": ["shop", "inventory", "collection", "daily-rewards", "quest-log", "profile"]
+    },
+    "hospital-roleplay": {
+      "label": "Hospital Roleplay",
+      "examples": "games like Animal Hospital, Emergency Response: Liberty County",
+      "direction": "frost",
+      "alt": "neon",
+      "accent": "#00acc1",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Medical Points", "icon": "heart-pulse"}],
+      "items": [
+        {"name": "Bandage", "icon": "bandage", "rarity": "common"},
+        {"name": "Stethoscope", "icon": "stethoscope", "rarity": "common"},
+        {"name": "Syringe", "icon": "syringe", "rarity": "rare"},
+        {"name": "Pill Bottle", "icon": "pill-bottle", "rarity": "rare"},
+        {"name": "Ambulance", "icon": "ambulance", "rarity": "epic"},
+        {"name": "Surgical Kit", "icon": "briefcase-medical", "rarity": "epic"},
+        {"name": "Defibrillator", "icon": "zap", "rarity": "legendary"},
+        {"name": "Medevac Helicopter", "icon": "helicopter", "rarity": "mythic"}
+      ],
+      "tabs": ["Equipment", "Uniforms", "Passes"],
+      "screens": ["shop", "inventory", "profile", "quest-log", "dialogue", "daily-rewards", "confirm-dialog"]
+    },
+    "school-roleplay": {
+      "label": "School Roleplay",
+      "examples": "games like Royale High, Robloxian High School",
+      "direction": "kawaii",
+      "alt": "frost",
+      "accent": "#fbc02d",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Pencil", "icon": "pencil", "rarity": "common"},
+        {"name": "Notebook", "icon": "notebook", "rarity": "common"},
+        {"name": "Backpack", "icon": "backpack", "rarity": "rare"},
+        {"name": "Calculator", "icon": "calculator", "rarity": "rare"},
+        {"name": "Graduation Cap", "icon": "graduation-cap", "rarity": "epic"},
+        {"name": "Science Kit", "icon": "flask-conical", "rarity": "epic"},
+        {"name": "Golden Apple Pass", "icon": "apple", "rarity": "legendary"},
+        {"name": "Class Trophy", "icon": "trophy", "rarity": "mythic"}
+      ],
+      "tabs": ["Supplies", "Uniforms", "Passes"],
+      "screens": ["shop", "inventory", "quest-log", "dialogue", "daily-rewards", "profile"]
+    },
+    "city-roleplay": {
+      "label": "City Roleplay",
+      "examples": "games like Brookhaven RP, Greenville, Emergency Response: Liberty County",
+      "direction": "frost",
+      "alt": "neon",
+      "accent": "#3d8bfd",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Bus Ticket", "icon": "ticket", "rarity": "common"},
+        {"name": "Apartment Key", "icon": "key", "rarity": "common"},
+        {"name": "Car Keys", "icon": "key-round", "rarity": "rare"},
+        {"name": "Smartphone", "icon": "smartphone", "rarity": "rare"},
+        {"name": "Designer Jacket", "icon": "shirt", "rarity": "epic"},
+        {"name": "Sports Car", "icon": "car", "rarity": "epic"},
+        {"name": "Penthouse Key", "icon": "key-square", "rarity": "legendary"},
+        {"name": "Helicopter Pass", "icon": "helicopter", "rarity": "mythic"}
+      ],
+      "tabs": ["Vehicles", "Clothing", "Passes"],
+      "screens": ["shop", "inventory", "profile", "dialogue", "quest-log", "daily-rewards"]
+    },
+    "driving-roleplay": {
+      "label": "Driving Roleplay",
+      "examples": "games like Driving Empire, Ultimate Driving",
+      "direction": "motorsport",
+      "alt": "neon",
+      "accent": "#e63946",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Compact Car", "icon": "car", "rarity": "common"},
+        {"name": "Pickup Truck", "icon": "truck", "rarity": "common"},
+        {"name": "Sports Coupe", "icon": "car-front", "rarity": "rare"},
+        {"name": "Turbo Kit", "icon": "zap", "rarity": "rare"},
+        {"name": "Race Tires", "icon": "circle-dot", "rarity": "epic"},
+        {"name": "Supercar", "icon": "rocket", "rarity": "epic"},
+        {"name": "Police Cruiser", "icon": "siren", "rarity": "legendary"},
+        {"name": "Golden Hypercar", "icon": "crown", "rarity": "mythic"}
+      ],
+      "tabs": ["Cars", "Parts", "Passes"],
+      "screens": ["shop", "inventory", "collection", "leaderboard", "daily-rewards", "quest-log"]
+    },
+    "car-dealership": {
+      "label": "Car Dealership",
+      "examples": "games like Car Dealership Tycoon, Vehicle Legends",
+      "direction": "motorsport",
+      "alt": "candy",
+      "accent": "#0091ea",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Used Hatchback", "icon": "car", "rarity": "common"},
+        {"name": "Family Sedan", "icon": "car-front", "rarity": "common"},
+        {"name": "Electric Coupe", "icon": "zap", "rarity": "rare"},
+        {"name": "Off-Road Jeep", "icon": "mountain", "rarity": "rare"},
+        {"name": "Luxury SUV", "icon": "diamond", "rarity": "epic"},
+        {"name": "Sports Car", "icon": "rocket", "rarity": "epic"},
+        {"name": "Hypercar", "icon": "flame", "rarity": "legendary"},
+        {"name": "Mythic Showroom Key", "icon": "key", "rarity": "mythic"}
+      ],
+      "tabs": ["Cars", "Upgrades", "Showroom"],
+      "screens": ["shop", "inventory", "collection", "hud-simulator", "daily-rewards", "leaderboard", "toasts"]
+    },
+    "racing": {
+      "label": "Racing",
+      "examples": "games like Midnight Racing: Tokyo, Ultimate Driving, Vehicle Legends",
+      "direction": "motorsport",
+      "alt": "neon",
+      "accent": "#ff6b00",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Basic Tires", "icon": "circle-dot", "rarity": "common"},
+        {"name": "Nitro Boost", "icon": "boost", "rarity": "common"},
+        {"name": "Racing Helmet", "icon": "hard-hat", "rarity": "rare"},
+        {"name": "Turbo Charger", "icon": "zap", "rarity": "rare"},
+        {"name": "Stripe Paint", "icon": "paintbrush", "rarity": "epic"},
+        {"name": "Drift Tires", "icon": "lightning", "rarity": "epic"},
+        {"name": "Champion Trophy", "icon": "trophy", "rarity": "legendary"},
+        {"name": "Rocket Engine", "icon": "rocket", "rarity": "mythic"}
+      ],
+      "tabs": ["Cars", "Upgrades", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "round-end", "battle-pass", "daily-rewards"]
+    },
+    "speed-simulator": {
+      "label": "Speed Simulator",
+      "examples": "games like Sonic Speed Simulator, Race Clicker",
+      "direction": "neon",
+      "alt": "candy",
+      "accent": "#22d3ee",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Speed Shoes", "icon": "footprints", "rarity": "common"},
+        {"name": "Energy Drink", "icon": "potion", "rarity": "common"},
+        {"name": "Turbo Trail", "icon": "wind", "rarity": "rare"},
+        {"name": "Ring Boost", "icon": "ring", "rarity": "rare"},
+        {"name": "Super Speed", "icon": "lightning", "rarity": "epic"},
+        {"name": "Rainbow Trail", "icon": "rainbow", "rarity": "epic"},
+        {"name": "Golden Sneakers", "icon": "sport-shoe", "rarity": "legendary"},
+        {"name": "Mythic Warp", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Speed", "Trails", "Passes"],
+      "screens": ["shop", "inventory", "collection", "leaderboard", "daily-rewards", "codes"]
+    },
+    "sports-soccer": {
+      "label": "Soccer",
+      "examples": "games like Super League Soccer, Blue Lock Rivals, FIFA Super Soccer",
+      "direction": "candy",
+      "alt": "forest",
+      "accent": "#16a34a",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Basic Boots", "icon": "sport-shoe", "rarity": "common"},
+        {"name": "Striker Jersey", "icon": "shirt", "rarity": "common"},
+        {"name": "Speed Boots", "icon": "footprints", "rarity": "rare"},
+        {"name": "Captain Armband", "icon": "ribbon", "rarity": "rare"},
+        {"name": "Golden Ball", "icon": "star", "rarity": "epic"},
+        {"name": "Stadium Pass", "icon": "ticket", "rarity": "epic"},
+        {"name": "Champion Kit", "icon": "medal", "rarity": "legendary"},
+        {"name": "Mythic Trophy", "icon": "trophy", "rarity": "mythic"}
+      ],
+      "tabs": ["Kits", "Boots", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "round-end", "battle-pass", "daily-rewards"]
+    },
+    "sports-basketball": {
+      "label": "Basketball",
+      "examples": "games like HoopVerse, Basketball Legends",
+      "direction": "ember",
+      "alt": "candy",
+      "accent": "#ea580c",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Practice Sneakers", "icon": "sport-shoe", "rarity": "common"},
+        {"name": "Practice Jersey", "icon": "shirt", "rarity": "common"},
+        {"name": "Headband", "icon": "ribbon", "rarity": "rare"},
+        {"name": "Pro Ball", "icon": "circle", "rarity": "rare"},
+        {"name": "Fire Jersey", "icon": "flame", "rarity": "epic"},
+        {"name": "Dunk Boots", "icon": "rocket", "rarity": "epic"},
+        {"name": "Hall of Fame Ring", "icon": "ring", "rarity": "legendary"},
+        {"name": "Championship Trophy", "icon": "trophy", "rarity": "mythic"}
+      ],
+      "tabs": ["Jerseys", "Shoes", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "round-end", "battle-pass", "daily-rewards"]
+    },
+    "obby": {
+      "label": "Obby",
+      "examples": "games like Tower of Hell, Speed Run 4, Mega Fun Obby",
+      "direction": "candy",
+      "alt": "neon",
+      "accent": "#ffb300",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Speed Coil", "icon": "zap", "rarity": "common"},
+        {"name": "Jump Boots", "icon": "footprints", "rarity": "common"},
+        {"name": "Rainbow Trail", "icon": "rainbow", "rarity": "rare"},
+        {"name": "Checkpoint Flag", "icon": "flag", "rarity": "rare"},
+        {"name": "Rocket Jump", "icon": "rocket", "rarity": "epic"},
+        {"name": "Grapple Magnet", "icon": "magnet", "rarity": "epic"},
+        {"name": "Golden Crown", "icon": "crown", "rarity": "legendary"},
+        {"name": "Mythic Wings", "icon": "wings", "rarity": "mythic"}
+      ],
+      "tabs": ["Trails", "Gear", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "round-end", "daily-rewards", "codes"]
+    },
+    "parkour": {
+      "label": "Parkour",
+      "examples": "games like Mega Fun Obby, Speed Run 4",
+      "direction": "neon",
+      "alt": "candy",
+      "accent": "#7c4dff",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Running Shoes", "icon": "sport-shoe", "rarity": "common"},
+        {"name": "Grip Gloves", "icon": "hand-grab", "rarity": "common"},
+        {"name": "Wall Run Skin", "icon": "wind", "rarity": "rare"},
+        {"name": "Grapple Gun", "icon": "crosshair", "rarity": "rare"},
+        {"name": "Double Jump Boots", "icon": "feather", "rarity": "epic"},
+        {"name": "Speed Boost", "icon": "boost", "rarity": "epic"},
+        {"name": "Dash Shard", "icon": "lightning", "rarity": "legendary"},
+        {"name": "Mythic Wings", "icon": "wings", "rarity": "mythic"}
+      ],
+      "tabs": ["Gear", "Skins", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "daily-rewards", "quest-log", "toasts"]
+    },
+    "tower-climbing": {
+      "label": "Tower Climbing",
+      "examples": "games like Tower of Hell, Mega Fun Obby",
+      "direction": "parchment",
+      "alt": "candy",
+      "accent": "#a0785a",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Climbing Gloves", "icon": "hand-grab", "rarity": "common"},
+        {"name": "Rope Coil", "icon": "route", "rarity": "common"},
+        {"name": "Iron Hook", "icon": "magnet", "rarity": "rare"},
+        {"name": "Spike Boots", "icon": "footprints", "rarity": "rare"},
+        {"name": "Tower Key", "icon": "key", "rarity": "epic"},
+        {"name": "Cloud Glider", "icon": "cloud", "rarity": "epic"},
+        {"name": "Summit Flag", "icon": "flag", "rarity": "legendary"},
+        {"name": "Sky Crown", "icon": "crown", "rarity": "mythic"}
+      ],
+      "tabs": ["Gear", "Skins", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "quest-log", "daily-rewards", "round-end"]
+    },
+    "platformer": {
+      "label": "Platformer",
+      "examples": "games like Speed Run 4, Tower of Hell",
+      "direction": "pixel",
+      "alt": "candy",
+      "accent": "#e53935",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Stars", "icon": "star"}],
+      "items": [
+        {"name": "Mushroom Power", "icon": "mushroom", "rarity": "common"},
+        {"name": "Power Boots", "icon": "sport-shoe", "rarity": "common"},
+        {"name": "Fire Flower", "icon": "flame", "rarity": "rare"},
+        {"name": "Ice Flower", "icon": "snowflake", "rarity": "rare"},
+        {"name": "Star Power", "icon": "star", "rarity": "epic"},
+        {"name": "Jetpack", "icon": "rocket", "rarity": "epic"},
+        {"name": "Golden Cape", "icon": "feather", "rarity": "legendary"},
+        {"name": "Crystal Heart", "icon": "crystal", "rarity": "mythic"}
+      ],
+      "tabs": ["Power-ups", "Skins", "Worlds"],
+      "screens": ["shop", "inventory", "quest-log", "round-end", "leaderboard", "toasts"]
+    },
+    "tycoon-restaurant": {
+      "label": "Restaurant Tycoon",
+      "examples": "games like Restaurant Tycoon 2, Work at a Pizza Place",
+      "direction": "candy",
+      "alt": "kawaii",
+      "accent": "#f4511e",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Wooden Table", "icon": "table", "rarity": "common"},
+        {"name": "Pizza Oven", "icon": "pizza", "rarity": "common"},
+        {"name": "Soda Machine", "icon": "cup-soda", "rarity": "rare"},
+        {"name": "Chef Hat", "icon": "chef-hat", "rarity": "rare"},
+        {"name": "Neon Sign", "icon": "lightbulb", "rarity": "epic"},
+        {"name": "Grand Piano", "icon": "piano", "rarity": "epic"},
+        {"name": "Golden Oven", "icon": "flame", "rarity": "legendary"},
+        {"name": "Mythic Franchise", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Decor", "Kitchen", "Staff"],
+      "screens": ["shop", "inventory", "hud-simulator", "daily-rewards", "leaderboard", "codes"]
+    },
+    "tycoon-factory": {
+      "label": "Factory Tycoon",
+      "examples": "games like Lumber Tycoon 2, Mining Tycoon",
+      "direction": "candy",
+      "alt": "neon",
+      "accent": "#546e7a",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Forklift", "icon": "forklift", "rarity": "common"},
+        {"name": "Cardboard Box", "icon": "package", "rarity": "common"},
+        {"name": "Assembly Robot", "icon": "bot", "rarity": "rare"},
+        {"name": "Steel Press", "icon": "hammer", "rarity": "rare"},
+        {"name": "Turbo Drill", "icon": "drill", "rarity": "epic"},
+        {"name": "Power Plant", "icon": "battery-full", "rarity": "epic"},
+        {"name": "Robot Arm", "icon": "robot-arm", "rarity": "legendary"},
+        {"name": "Mega Factory", "icon": "factory", "rarity": "mythic"}
+      ],
+      "tabs": ["Machines", "Upgrades", "Passes"],
+      "screens": ["shop", "inventory", "hud-simulator", "daily-rewards", "leaderboard", "codes"]
+    },
+    "horror-escape": {
+      "label": "Horror Escape",
+      "examples": "games like Doors, The Mimic, Piggy",
+      "direction": "grunge",
+      "alt": "tactical",
+      "accent": "#8b0000",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Keys", "icon": "key"}],
+      "items": [
+        {"name": "Flashlight", "icon": "flashlight", "rarity": "common"},
+        {"name": "Lockpick", "icon": "lock-keyhole-open", "rarity": "common"},
+        {"name": "Battery Pack", "icon": "battery-full", "rarity": "rare"},
+        {"name": "Walkie Talkie", "icon": "radio", "rarity": "rare"},
+        {"name": "Gas Mask", "icon": "biohazard", "rarity": "epic"},
+        {"name": "Night Goggles", "icon": "glasses", "rarity": "epic"},
+        {"name": "Golden Key", "icon": "key", "rarity": "legendary"},
+        {"name": "Skull Charm", "icon": "skull", "rarity": "mythic"}
+      ],
+      "tabs": ["Items", "Keys", "Passes"],
+      "screens": ["inventory", "quest-log", "dialogue", "round-end", "settings", "toasts"]
+    },
+    "horror-survival": {
+      "label": "Horror Survival",
+      "examples": "games like 99 Nights in the Forest, Rainbow Friends, Dandy's World",
+      "direction": "grunge",
+      "alt": "forest",
+      "accent": "#4b2e3a",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Wood Axe", "icon": "axe", "rarity": "common"},
+        {"name": "Campfire Kit", "icon": "flame", "rarity": "common"},
+        {"name": "Night Vision", "icon": "eye", "rarity": "rare"},
+        {"name": "Flare Gun", "icon": "siren", "rarity": "rare"},
+        {"name": "Iron Armor", "icon": "shield", "rarity": "epic"},
+        {"name": "Spirit Charm", "icon": "ghost", "rarity": "epic"},
+        {"name": "Golden Lantern", "icon": "lamp", "rarity": "legendary"},
+        {"name": "Mythic Relic", "icon": "skull", "rarity": "mythic"}
+      ],
+      "tabs": ["Survival", "Weapons", "Passes"],
+      "screens": ["inventory", "hud-combat", "quest-log", "shop", "daily-rewards", "round-end"]
+    },
+    "hide-and-seek": {
+      "label": "Hide and Seek",
+      "examples": "games like Hide and Seek Extreme, Flee the Facility",
+      "direction": "toybox",
+      "alt": "candy",
+      "accent": "#3fb37f",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Cardboard Box", "icon": "package", "rarity": "common"},
+        {"name": "Camo Hoodie", "icon": "shirt", "rarity": "common"},
+        {"name": "Glow Stick", "icon": "sparkles", "rarity": "rare"},
+        {"name": "Smoke Bomb", "icon": "bomb", "rarity": "rare"},
+        {"name": "Invisibility Cloak", "icon": "ghost", "rarity": "epic"},
+        {"name": "Speed Shoes", "icon": "boost", "rarity": "epic"},
+        {"name": "Golden Hider Medal", "icon": "medal", "rarity": "legendary"},
+        {"name": "Mythic Chameleon", "icon": "eye-off", "rarity": "mythic"}
+      ],
+      "tabs": ["Costumes", "Gadgets", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "round-end", "daily-rewards", "toasts"]
+    },
+    "murder-mystery": {
+      "label": "Murder Mystery",
+      "examples": "games like Murder Mystery 2, Murderers vs. Sheriffs",
+      "direction": "grunge",
+      "alt": "parchment",
+      "accent": "#4a148c",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Classic Knife", "icon": "sword", "rarity": "common"},
+        {"name": "Toy Gun", "icon": "crosshair", "rarity": "common"},
+        {"name": "Chroma Knife", "icon": "lightning", "rarity": "rare"},
+        {"name": "Ghost Knife", "icon": "ghost", "rarity": "rare"},
+        {"name": "Sheriff Badge", "icon": "shield", "rarity": "epic"},
+        {"name": "Vampire Set", "icon": "skull", "rarity": "epic"},
+        {"name": "Dragon Knife", "icon": "flame", "rarity": "legendary"},
+        {"name": "Mythic Mask", "icon": "venetian-mask", "rarity": "mythic"}
+      ],
+      "tabs": ["Knives", "Guns", "Crates"],
+      "screens": ["shop", "inventory", "collection", "round-end", "leaderboard", "quest-log"]
+    },
+    "prison-escape": {
+      "label": "Prison Escape",
+      "examples": "games like Jailbreak, Prison Life",
+      "direction": "grunge",
+      "alt": "tactical",
+      "accent": "#795548",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Spoon", "icon": "utensils", "rarity": "common"},
+        {"name": "Bed Sheets", "icon": "bed", "rarity": "common"},
+        {"name": "Shiv", "icon": "pocket-knife", "rarity": "rare"},
+        {"name": "Lockpick Set", "icon": "key", "rarity": "rare"},
+        {"name": "Guard Keycard", "icon": "id-card", "rarity": "epic"},
+        {"name": "Bolt Cutters", "icon": "scissors", "rarity": "epic"},
+        {"name": "Getaway Helicopter", "icon": "helicopter", "rarity": "legendary"},
+        {"name": "Golden Master Key", "icon": "lock", "rarity": "mythic"}
+      ],
+      "tabs": ["Contraband", "Tools", "Passes"],
+      "screens": ["shop", "inventory", "quest-log", "round-end", "dialogue", "confirm-dialog"]
+    },
+    "heist": {
+      "label": "Heist",
+      "examples": "games like Notoriety, Jailbreak",
+      "direction": "tactical",
+      "alt": "royal",
+      "accent": "#37474f",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Crowbar", "icon": "hammer", "rarity": "common"},
+        {"name": "Ski Mask", "icon": "eye-off", "rarity": "common"},
+        {"name": "Thermal Drill", "icon": "drill", "rarity": "rare"},
+        {"name": "Hacking Laptop", "icon": "cpu", "rarity": "rare"},
+        {"name": "Smoke Canister", "icon": "cloud", "rarity": "epic"},
+        {"name": "Getaway Van", "icon": "van", "rarity": "epic"},
+        {"name": "Gem Vault Key", "icon": "gem", "rarity": "legendary"},
+        {"name": "Mythic Heist Plan", "icon": "scroll", "rarity": "mythic"}
+      ],
+      "tabs": ["Gear", "Vehicles", "Crews"],
+      "screens": ["shop", "inventory", "quest-log", "round-end", "leaderboard", "confirm-dialog"]
+    },
+    "survival-crafting": {
+      "label": "Survival Crafting",
+      "examples": "games like Booga Booga Reborn, Islands",
+      "direction": "forest",
+      "alt": "grunge",
+      "accent": "#6b8e23",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Wooden Sword", "icon": "sword", "rarity": "common"},
+        {"name": "Stone Axe", "icon": "axe", "rarity": "common"},
+        {"name": "Campfire Kit", "icon": "flame", "rarity": "rare"},
+        {"name": "Leather Armor", "icon": "shield", "rarity": "rare"},
+        {"name": "Iron Pickaxe", "icon": "pickaxe", "rarity": "epic"},
+        {"name": "Bow and Arrow", "icon": "bow-arrow", "rarity": "epic"},
+        {"name": "Dragon Scale Armor", "icon": "shield-check", "rarity": "legendary"},
+        {"name": "Mythic Tent", "icon": "tent", "rarity": "mythic"}
+      ],
+      "tabs": ["Crafting", "Weapons", "Shelter"],
+      "screens": ["inventory", "hud-combat", "quest-log", "shop", "daily-rewards"]
+    },
+    "disaster-survival": {
+      "label": "Disaster Survival",
+      "examples": "games like Natural Disaster Survival, Super Bomb Survival",
+      "direction": "grunge",
+      "alt": "tactical",
+      "accent": "#e4572e",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Rain Boots", "icon": "droplet", "rarity": "common"},
+        {"name": "First Aid Kit", "icon": "bandage", "rarity": "common"},
+        {"name": "Hard Hat", "icon": "hard-hat", "rarity": "rare"},
+        {"name": "Bomb Shelter Key", "icon": "key", "rarity": "rare"},
+        {"name": "Tornado Charm", "icon": "tornado", "rarity": "epic"},
+        {"name": "Shockwave Shield", "icon": "shield", "rarity": "epic"},
+        {"name": "Meteor Core", "icon": "orb", "rarity": "legendary"},
+        {"name": "Mythic Storm Crown", "icon": "crown", "rarity": "mythic"}
+      ],
+      "tabs": ["Gear", "Charms", "Passes"],
+      "screens": ["shop", "inventory", "leaderboard", "round-end", "daily-rewards", "toasts"]
+    },
+    "ocean-survival": {
+      "label": "Ocean Survival",
+      "examples": "games like SharkBite, Scuba Diving at Quill Lake",
+      "direction": "aqua",
+      "alt": "candy",
+      "accent": "#0077b6",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Swim Fins", "icon": "footprints", "rarity": "common"},
+        {"name": "Snorkel", "icon": "wind", "rarity": "common"},
+        {"name": "Dive Mask", "icon": "glasses", "rarity": "rare"},
+        {"name": "Harpoon", "icon": "fishing-hook", "rarity": "rare"},
+        {"name": "Oxygen Tank", "icon": "air-vent", "rarity": "epic"},
+        {"name": "Diving Bell", "icon": "bell", "rarity": "epic"},
+        {"name": "Sunken Treasure", "icon": "chest", "rarity": "legendary"},
+        {"name": "Mythic Pearl", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Gear", "Boats", "Passes"],
+      "screens": ["shop", "inventory", "collection", "leaderboard", "round-end", "daily-rewards"]
+    },
+    "zombie-survival": {
+      "label": "Zombie Survival",
+      "examples": "games like Those Who Remain, Zombie Attack",
+      "direction": "grunge",
+      "alt": "tactical",
+      "accent": "#6fbf1f",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Pistol", "icon": "crosshair", "rarity": "common"},
+        {"name": "Bandages", "icon": "bandage", "rarity": "common"},
+        {"name": "Ammo Box", "icon": "box", "rarity": "rare"},
+        {"name": "Hunting Rifle", "icon": "target", "rarity": "rare"},
+        {"name": "Molotov", "icon": "flame", "rarity": "epic"},
+        {"name": "Riot Shield", "icon": "shield", "rarity": "epic"},
+        {"name": "Medkit", "icon": "heart-pulse", "rarity": "legendary"},
+        {"name": "Biohazard Minigun", "icon": "biohazard", "rarity": "mythic"}
+      ],
+      "tabs": ["Weapons", "Supplies", "Shelter"],
+      "screens": ["inventory", "hud-combat", "shop", "round-end", "quest-log", "daily-rewards"]
+    },
+    "battle-royale": {
+      "label": "Battle Royale",
+      "examples": "games like Island Royale, Strucid",
+      "direction": "tactical",
+      "alt": "ember",
+      "accent": "#f59e0b",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Pistol", "icon": "crosshair", "rarity": "common"},
+        {"name": "Bandage", "icon": "bandage", "rarity": "common"},
+        {"name": "Assault Rifle", "icon": "target", "rarity": "rare"},
+        {"name": "Grenade", "icon": "bomb", "rarity": "rare"},
+        {"name": "Sniper Scope", "icon": "scan", "rarity": "epic"},
+        {"name": "Shield Potion", "icon": "potion", "rarity": "epic"},
+        {"name": "Golden Armor", "icon": "shield", "rarity": "legendary"},
+        {"name": "Dragon Blaster", "icon": "flame", "rarity": "mythic"}
+      ],
+      "tabs": ["Loot", "Skins", "Passes"],
+      "screens": ["hud-combat", "round-end", "battle-pass", "inventory", "shop", "leaderboard"]
+    },
+    "fps-shooter": {
+      "label": "FPS Shooter",
+      "examples": "games like Arsenal, Phantom Forces, Rivals",
+      "direction": "tactical",
+      "alt": "neon",
+      "accent": "#ef4444",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Woodland Camo", "icon": "target", "rarity": "common"},
+        {"name": "Desert Camo", "icon": "target", "rarity": "common"},
+        {"name": "Chrome Finish", "icon": "sparkles", "rarity": "rare"},
+        {"name": "Neon Grip", "icon": "zap", "rarity": "rare"},
+        {"name": "Dragon Scope", "icon": "crosshair", "rarity": "epic"},
+        {"name": "Blood Skull Skin", "icon": "skull", "rarity": "epic"},
+        {"name": "Gold Rifle", "icon": "crown", "rarity": "legendary"},
+        {"name": "Mythic Plasma", "icon": "lightning", "rarity": "mythic"}
+      ],
+      "tabs": ["Skins", "Crates", "Passes"],
+      "screens": ["hud-combat", "inventory", "shop", "round-end", "battle-pass", "leaderboard", "toasts"]
+    },
+    "war-shooter": {
+      "label": "War Shooter",
+      "examples": "games like Frontlines, Bad Business",
+      "direction": "tactical",
+      "alt": "neon",
+      "accent": "#556b2f",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Field Helmet", "icon": "hard-hat", "rarity": "common"},
+        {"name": "Combat Vest", "icon": "shield", "rarity": "common"},
+        {"name": "Rifle Skin", "icon": "target", "rarity": "rare"},
+        {"name": "Night Scope", "icon": "eye", "rarity": "rare"},
+        {"name": "Sniper Rifle", "icon": "crosshair", "rarity": "epic"},
+        {"name": "Mortar", "icon": "bomb", "rarity": "epic"},
+        {"name": "Tank Keycard", "icon": "id-card", "rarity": "legendary"},
+        {"name": "Mythic Airstrike", "icon": "rocket", "rarity": "mythic"}
+      ],
+      "tabs": ["Loadouts", "Skins", "Passes"],
+      "screens": ["hud-combat", "inventory", "shop", "round-end", "battle-pass", "leaderboard"]
+    },
+    "sword-fighting": {
+      "label": "Sword Fighting",
+      "examples": "games like Blade Ball, Swordburst 2",
+      "direction": "ember",
+      "alt": "parchment",
+      "accent": "#f97316",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Wooden Sword", "icon": "sword", "rarity": "common"},
+        {"name": "Shield Board", "icon": "shield", "rarity": "common"},
+        {"name": "Steel Blade", "icon": "swords", "rarity": "rare"},
+        {"name": "Flame Sword", "icon": "flame", "rarity": "rare"},
+        {"name": "Frost Blade", "icon": "snowflake", "rarity": "epic"},
+        {"name": "Lightning Saber", "icon": "lightning", "rarity": "epic"},
+        {"name": "Dragon Slayer", "icon": "skull", "rarity": "legendary"},
+        {"name": "Starbreaker", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Swords", "Shields", "Passes"],
+      "screens": ["hud-combat", "inventory", "shop", "round-end", "leaderboard", "battle-pass"]
+    },
+    "anime-fighting": {
+      "label": "Anime Fighting",
+      "examples": "games like Anime Fighting Simulator, Shindo Life, Jujutsu Shenanigans",
+      "direction": "ember",
+      "alt": "neon",
+      "accent": "#ff2e63",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Training Gi", "icon": "shirt", "rarity": "common"},
+        {"name": "Chakra Scroll", "icon": "scroll", "rarity": "common"},
+        {"name": "Fire Breath", "icon": "flame", "rarity": "rare"},
+        {"name": "Wind Blade", "icon": "wind", "rarity": "rare"},
+        {"name": "Shadow Clone", "icon": "ghost", "rarity": "epic"},
+        {"name": "Lightning Fist", "icon": "lightning", "rarity": "epic"},
+        {"name": "Demon Mask", "icon": "venetian-mask", "rarity": "legendary"},
+        {"name": "Mythic Bloodline", "icon": "wings", "rarity": "mythic"}
+      ],
+      "tabs": ["Moves", "Gear", "Passes"],
+      "screens": ["hud-combat", "inventory", "shop", "battle-pass", "leaderboard", "round-end"]
+    },
+    "anime-adventure": {
+      "label": "Anime Adventure",
+      "examples": "games like Anime Last Stand, Anime Vanguards, Project Slayers",
+      "direction": "candy",
+      "alt": "neon",
+      "accent": "#a855f7",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Starter Unit", "icon": "sword", "rarity": "common"},
+        {"name": "Ninja Scroll", "icon": "scroll", "rarity": "common"},
+        {"name": "Blade Master", "icon": "swords", "rarity": "rare"},
+        {"name": "Fire Mage", "icon": "flame", "rarity": "rare"},
+        {"name": "Thunder Titan", "icon": "lightning", "rarity": "epic"},
+        {"name": "Frost Queen", "icon": "snowflake", "rarity": "epic"},
+        {"name": "Golden Hero", "icon": "crown", "rarity": "legendary"},
+        {"name": "Mythic Ascended", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Units", "Summons", "Passes"],
+      "screens": ["collection", "shop", "battle-pass", "daily-rewards", "round-end", "hud-combat"]
+    },
+    "tower-defense": {
+      "label": "Tower Defense",
+      "examples": "games like Tower Defense Simulator, All Star Tower Defense, Tower Defense X",
+      "direction": "tactical",
+      "alt": "neon",
+      "accent": "#38bdf8",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Scout Tower", "icon": "eye", "rarity": "common"},
+        {"name": "Cannon Tower", "icon": "bomb", "rarity": "common"},
+        {"name": "Archer Tower", "icon": "bow-arrow", "rarity": "rare"},
+        {"name": "Frost Tower", "icon": "snowflake", "rarity": "rare"},
+        {"name": "Laser Turret", "icon": "zap", "rarity": "epic"},
+        {"name": "Mage Tower", "icon": "wand-sparkles", "rarity": "epic"},
+        {"name": "Mega Robot", "icon": "bot", "rarity": "legendary"},
+        {"name": "Mythic Core", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Towers", "Upgrades", "Passes"],
+      "screens": ["hud-combat", "shop", "inventory", "round-end", "leaderboard", "daily-rewards"]
+    },
+    "gacha": {
+      "label": "Gacha",
+      "examples": "games like Anime Vanguards, Pet Simulator 99",
+      "direction": "candy",
+      "alt": "neon",
+      "accent": "#b67cff",
+      "currencies": [{"name": "Tickets", "icon": "ticket"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Starter Summon", "icon": "ticket", "rarity": "common"},
+        {"name": "Blue Crate", "icon": "gift", "rarity": "common"},
+        {"name": "Rare Summon", "icon": "sparkles", "rarity": "rare"},
+        {"name": "Hero Card", "icon": "shield", "rarity": "rare"},
+        {"name": "Epic Summon", "icon": "wand-sparkles", "rarity": "epic"},
+        {"name": "Divine Relic", "icon": "crown", "rarity": "epic"},
+        {"name": "Legendary Banner", "icon": "star", "rarity": "legendary"},
+        {"name": "Mythic Pull", "icon": "crystal", "rarity": "mythic"}
+      ],
+      "tabs": ["Banners", "Units", "Shop"],
+      "screens": ["shop", "inventory", "collection", "daily-rewards", "battle-pass", "toasts", "confirm-dialog"]
+    },
+    "idle-game": {
+      "label": "Idle Game",
+      "examples": "games like Race Clicker, Crypto Miners Tycoon",
+      "direction": "candy",
+      "alt": "neon",
+      "accent": "#0ea5e9",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Crystals", "icon": "crystal"}],
+      "items": [
+        {"name": "Extra Worker", "icon": "hard-hat", "rarity": "common"},
+        {"name": "Cash Booster", "icon": "boost", "rarity": "common"},
+        {"name": "Speed Upgrade", "icon": "rocket", "rarity": "rare"},
+        {"name": "Golden Drill", "icon": "pickaxe", "rarity": "rare"},
+        {"name": "Lucky Charm", "icon": "clover", "rarity": "epic"},
+        {"name": "Time Warp", "icon": "hourglass", "rarity": "epic"},
+        {"name": "Mega Factory", "icon": "factory", "rarity": "legendary"},
+        {"name": "Infinity Engine", "icon": "infinity", "rarity": "mythic"}
+      ],
+      "tabs": ["Upgrades", "Boosts", "Prestige"],
+      "screens": ["shop", "daily-rewards", "quest-log", "leaderboard", "toasts", "settings"]
+    },
+    "pirate-adventure": {
+      "label": "Pirate Adventure",
+      "examples": "games like Blox Fruits, King Legacy",
+      "direction": "aqua",
+      "alt": "parchment",
+      "accent": "#0f766e",
+      "currencies": [{"name": "Doubloons", "icon": "coin"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Cutlass", "icon": "sword", "rarity": "common"},
+        {"name": "Tricorn Hat", "icon": "hat-glasses", "rarity": "common"},
+        {"name": "Spyglass", "icon": "telescope", "rarity": "rare"},
+        {"name": "Compass", "icon": "compass", "rarity": "rare"},
+        {"name": "Treasure Map", "icon": "map", "rarity": "epic"},
+        {"name": "Cannon", "icon": "bomb", "rarity": "epic"},
+        {"name": "Ghost Ship Flag", "icon": "skull", "rarity": "legendary"},
+        {"name": "Mythic Sea Relic", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Loot", "Ships", "Passes"],
+      "screens": ["inventory", "shop", "quest-log", "hud-combat", "daily-rewards", "leaderboard"]
+    },
+    "fantasy-rpg": {
+      "label": "Fantasy RPG",
+      "examples": "games like Dungeon Quest, Arcane Odyssey",
+      "direction": "parchment",
+      "alt": "forest",
+      "accent": "#7e22ce",
+      "currencies": [{"name": "Gold", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Leather Boots", "icon": "footprints", "rarity": "common"},
+        {"name": "Wooden Staff", "icon": "wand", "rarity": "common"},
+        {"name": "Elven Bow", "icon": "bow-arrow", "rarity": "rare"},
+        {"name": "Steel Dagger", "icon": "pocket-knife", "rarity": "rare"},
+        {"name": "Mage Robe", "icon": "shirt", "rarity": "epic"},
+        {"name": "Runic Amulet", "icon": "sparkle", "rarity": "epic"},
+        {"name": "Dragon Armor", "icon": "shield", "rarity": "legendary"},
+        {"name": "Phoenix Feather", "icon": "feather", "rarity": "mythic"}
+      ],
+      "tabs": ["Equipment", "Potions", "Quests"],
+      "screens": ["inventory", "hud-combat", "quest-log", "shop", "dialogue", "profile"]
+    },
+    "dungeon-crawler": {
+      "label": "Dungeon Crawler",
+      "examples": "games like Dungeon Quest, Arcane Odyssey",
+      "direction": "grunge",
+      "alt": "parchment",
+      "accent": "#44403c",
+      "currencies": [{"name": "Gold", "icon": "coins"}, {"name": "Keys", "icon": "key"}],
+      "items": [
+        {"name": "Rusty Dagger", "icon": "pocket-knife", "rarity": "common"},
+        {"name": "Torch", "icon": "flame", "rarity": "common"},
+        {"name": "Bone Shield", "icon": "bone", "rarity": "rare"},
+        {"name": "Iron Chest", "icon": "chest", "rarity": "rare"},
+        {"name": "Cursed Ring", "icon": "ring", "rarity": "epic"},
+        {"name": "Skeleton Key", "icon": "key", "rarity": "epic"},
+        {"name": "Dungeon Relic", "icon": "skull", "rarity": "legendary"},
+        {"name": "Mythic Soul Gem", "icon": "gem", "rarity": "mythic"}
+      ],
+      "tabs": ["Loot", "Keys", "Relics"],
+      "screens": ["inventory", "hud-combat", "round-end", "quest-log", "shop", "leaderboard"]
+    },
+    "superhero": {
+      "label": "Superhero",
+      "examples": "games like Super Power Fighting Simulator, Heroes Battlegrounds",
+      "direction": "candy",
+      "alt": "ember",
+      "accent": "#ffd60a",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Hero Cape", "icon": "feather", "rarity": "common"},
+        {"name": "Blue Suit", "icon": "shirt", "rarity": "common"},
+        {"name": "Speed Boots", "icon": "boost", "rarity": "rare"},
+        {"name": "Laser Eyes", "icon": "eye", "rarity": "rare"},
+        {"name": "Flight Wings", "icon": "wings", "rarity": "epic"},
+        {"name": "Shield Bracelet", "icon": "shield", "rarity": "epic"},
+        {"name": "Thunder Hammer", "icon": "hammer", "rarity": "legendary"},
+        {"name": "Mythic Power Core", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Suits", "Powers", "Passes"],
+      "screens": ["hud-combat", "inventory", "shop", "battle-pass", "leaderboard", "daily-rewards"]
+    },
+    "ninja": {
+      "label": "Ninja",
+      "examples": "games like Ninja Legends, Shinobi Life 2",
+      "direction": "forest",
+      "alt": "ember",
+      "accent": "#15803d",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Ninja Headband", "icon": "ribbon", "rarity": "common"},
+        {"name": "Shuriken", "icon": "star", "rarity": "common"},
+        {"name": "Kunai", "icon": "pocket-knife", "rarity": "rare"},
+        {"name": "Smoke Bomb", "icon": "bomb", "rarity": "rare"},
+        {"name": "Shadow Cloak", "icon": "ghost", "rarity": "epic"},
+        {"name": "Dragon Scroll", "icon": "scroll", "rarity": "epic"},
+        {"name": "Golden Katana", "icon": "sword", "rarity": "legendary"},
+        {"name": "Mythic Chakra", "icon": "orb", "rarity": "mythic"}
+      ],
+      "tabs": ["Weapons", "Jutsu", "Passes"],
+      "screens": ["hud-combat", "inventory", "shop", "quest-log", "leaderboard", "battle-pass"]
+    },
+    "sandbox-building": {
+      "label": "Sandbox Building",
+      "examples": "games like Welcome to Bloxburg, Plane Crazy",
+      "direction": "toybox",
+      "alt": "candy",
+      "accent": "#f0a500",
+      "currencies": [{"name": "Bricks", "icon": "blocks"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Brick Pack", "icon": "brick-wall", "rarity": "common"},
+        {"name": "Glass Panel", "icon": "square", "rarity": "common"},
+        {"name": "Metal Beam", "icon": "ruler", "rarity": "rare"},
+        {"name": "Stone Block", "icon": "cuboid", "rarity": "rare"},
+        {"name": "Neon Lamp", "icon": "lamp", "rarity": "epic"},
+        {"name": "Fountain", "icon": "droplets", "rarity": "epic"},
+        {"name": "Golden Statue", "icon": "star", "rarity": "legendary"},
+        {"name": "Mythic Castle Kit", "icon": "castle", "rarity": "mythic"}
+      ],
+      "tabs": ["Blocks", "Decor", "Passes"],
+      "screens": ["inventory", "shop", "collection", "quest-log", "daily-rewards", "toasts"]
+    },
+    "plane-flight-sim": {
+      "label": "Plane & Flight Sim",
+      "examples": "games like Ryanair Roblox, Plane Crazy",
+      "direction": "frost",
+      "alt": "neon",
+      "accent": "#0284c7",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Miles", "icon": "compass"}],
+      "items": [
+        {"name": "Prop Plane", "icon": "plane", "rarity": "common"},
+        {"name": "Pilot Headset", "icon": "headphones", "rarity": "common"},
+        {"name": "Jet Airliner", "icon": "plane-takeoff", "rarity": "rare"},
+        {"name": "Cargo Plane", "icon": "package", "rarity": "rare"},
+        {"name": "Stunt Plane", "icon": "rocket", "rarity": "epic"},
+        {"name": "Seaplane", "icon": "waves-horizontal", "rarity": "epic"},
+        {"name": "Golden Jet", "icon": "crown", "rarity": "legendary"},
+        {"name": "Mythic Airship", "icon": "cloud", "rarity": "mythic"}
+      ],
+      "tabs": ["Aircraft", "Liveries", "Routes"],
+      "screens": ["shop", "inventory", "collection", "quest-log", "leaderboard", "daily-rewards", "toasts"]
+    },
+    "monster-catching": {
+      "label": "Monster Catching",
+      "examples": "games like Pokémon Brick Bronze, Creatures of Sonaria",
+      "direction": "kawaii",
+      "alt": "candy",
+      "accent": "#84cc16",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Catch Ball", "icon": "circle-dot", "rarity": "common"},
+        {"name": "Healing Potion", "icon": "potion", "rarity": "common"},
+        {"name": "Fire Monster", "icon": "flame", "rarity": "rare"},
+        {"name": "Water Monster", "icon": "droplet", "rarity": "rare"},
+        {"name": "Leaf Monster", "icon": "leaf", "rarity": "epic"},
+        {"name": "Electric Monster", "icon": "lightning", "rarity": "epic"},
+        {"name": "Dragon Monster", "icon": "wings", "rarity": "legendary"},
+        {"name": "Mythic Titan", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Creatures", "Items", "Passes"],
+      "screens": ["collection", "inventory", "shop", "hud-combat", "daily-rewards", "leaderboard"]
+    },
+    "treasure-hunting": {
+      "label": "Treasure Hunting",
+      "examples": "games like Build a Boat for Treasure, Scuba Diving at Quill Lake",
+      "direction": "parchment",
+      "alt": "aqua",
+      "accent": "#d4a017",
+      "currencies": [{"name": "Gold", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Rusty Key", "icon": "key", "rarity": "common"},
+        {"name": "Old Map", "icon": "map", "rarity": "common"},
+        {"name": "Silver Chest", "icon": "chest", "rarity": "rare"},
+        {"name": "Pirate Compass", "icon": "compass", "rarity": "rare"},
+        {"name": "Ancient Scroll", "icon": "scroll", "rarity": "epic"},
+        {"name": "Emerald Ring", "icon": "ring", "rarity": "epic"},
+        {"name": "Golden Idol", "icon": "crown", "rarity": "legendary"},
+        {"name": "Mythic Gem", "icon": "gem", "rarity": "mythic"}
+      ],
+      "tabs": ["Loot", "Maps", "Shop"],
+      "screens": ["inventory", "collection", "quest-log", "daily-rewards", "round-end", "toasts"]
+    },
+    "boat-sim": {
+      "label": "Boat Sim",
+      "examples": "games like Build a Boat for Treasure, Scuba Diving at Quill Lake",
+      "direction": "aqua",
+      "alt": "candy",
+      "accent": "#0891b2",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Rowboat", "icon": "kayak", "rarity": "common"},
+        {"name": "Wood Raft", "icon": "waves-horizontal", "rarity": "common"},
+        {"name": "Motor Yacht", "icon": "ship", "rarity": "rare"},
+        {"name": "Sailboat", "icon": "sailboat", "rarity": "rare"},
+        {"name": "Fishing Trawler", "icon": "ship-wheel", "rarity": "epic"},
+        {"name": "Cruise Liner", "icon": "ship", "rarity": "epic"},
+        {"name": "Golden Anchor", "icon": "anchor", "rarity": "legendary"},
+        {"name": "Mythic Submarine", "icon": "bubbles", "rarity": "mythic"}
+      ],
+      "tabs": ["Boats", "Engines", "Harbors"],
+      "screens": ["shop", "inventory", "collection", "quest-log", "leaderboard", "daily-rewards"]
+    },
+    "trading-game": {
+      "label": "Trading",
+      "examples": "games like Adopt Me!, Grow a Garden",
+      "direction": "frost",
+      "alt": "candy",
+      "accent": "#06b6d4",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Trade Ticket", "icon": "ticket", "rarity": "common"},
+        {"name": "Basic Trinket", "icon": "gift", "rarity": "common"},
+        {"name": "Silver Charm", "icon": "medal", "rarity": "rare"},
+        {"name": "Ruby Ring", "icon": "ring", "rarity": "rare"},
+        {"name": "Golden Coin", "icon": "coin", "rarity": "epic"},
+        {"name": "Mystery Box", "icon": "chest", "rarity": "epic"},
+        {"name": "Diamond Trophy", "icon": "trophy", "rarity": "legendary"},
+        {"name": "Mythic Relic", "icon": "crystal", "rarity": "mythic"}
+      ],
+      "tabs": ["Items", "Offers", "History"],
+      "screens": ["inventory", "collection", "shop", "toasts", "confirm-dialog", "leaderboard"]
+    },
+    "hangout-social": {
+      "label": "Hangout & Social",
+      "examples": "games like MeepCity, Brookhaven RP",
+      "direction": "frost",
+      "alt": "kawaii",
+      "accent": "#fb7185",
+      "currencies": [{"name": "Coins", "icon": "coins"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Cozy Hoodie", "icon": "shirt", "rarity": "common"},
+        {"name": "Party Hat", "icon": "party-popper", "rarity": "common"},
+        {"name": "Boombox", "icon": "boom-box", "rarity": "rare"},
+        {"name": "Gaming Chair", "icon": "armchair", "rarity": "rare"},
+        {"name": "Rooftop Pass", "icon": "ticket", "rarity": "epic"},
+        {"name": "Friend Badge", "icon": "heart", "rarity": "epic"},
+        {"name": "Golden Mic", "icon": "mic", "rarity": "legendary"},
+        {"name": "Mythic Aura", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Outfits", "Furniture", "Passes"],
+      "screens": ["profile", "inventory", "shop", "dialogue", "daily-rewards", "toasts"]
+    },
+    "steal-and-collect": {
+      "label": "Steal & Collect",
+      "examples": "games like Steal a Brainrot, Steal an Egg",
+      "direction": "candy",
+      "alt": "toybox",
+      "accent": "#ff4fd8",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Mini Brainrot", "icon": "egg", "rarity": "common"},
+        {"name": "Lucky Sack", "icon": "money-bag", "rarity": "common"},
+        {"name": "Sneaky Cloak", "icon": "ghost", "rarity": "rare"},
+        {"name": "Speed Shoes", "icon": "boost", "rarity": "rare"},
+        {"name": "Golden Egg", "icon": "egg", "rarity": "epic"},
+        {"name": "Spy Gadget", "icon": "radio", "rarity": "epic"},
+        {"name": "Mythic Brainrot", "icon": "skull", "rarity": "legendary"},
+        {"name": "Vault Key", "icon": "key", "rarity": "mythic"}
+      ],
+      "tabs": ["Brainrots", "Gear", "Passes"],
+      "screens": ["shop", "inventory", "collection", "leaderboard", "round-end", "daily-rewards"]
+    },
+    "job-sim": {
+      "label": "Job Simulator",
+      "examples": "games like Work at a Pizza Place, The Co-Worker Game",
+      "direction": "kawaii",
+      "alt": "frost",
+      "accent": "#f9a825",
+      "currencies": [{"name": "Cash", "icon": "cash"}, {"name": "Gems", "icon": "gem"}],
+      "items": [
+        {"name": "Work Uniform", "icon": "shirt", "rarity": "common"},
+        {"name": "Name Badge", "icon": "id-card", "rarity": "common"},
+        {"name": "Coffee Break", "icon": "coffee", "rarity": "rare"},
+        {"name": "Office Keycard", "icon": "key-round", "rarity": "rare"},
+        {"name": "Promotion Letter", "icon": "scroll", "rarity": "epic"},
+        {"name": "Company Car", "icon": "car", "rarity": "epic"},
+        {"name": "Executive Desk", "icon": "table", "rarity": "legendary"},
+        {"name": "Mythic Promotion", "icon": "star", "rarity": "mythic"}
+      ],
+      "tabs": ["Uniforms", "Upgrades", "Passes"],
+      "screens": ["shop", "inventory", "quest-log", "dialogue", "daily-rewards", "leaderboard"]
+    }
+  }
+}

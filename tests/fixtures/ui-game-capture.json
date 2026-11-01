@@ -1,0 +1,802 @@
+{
+ "source": "StarterGui",
+ "screens": [
+  {
+   "id": 26,
+   "name": "ShopGui",
+   "cls": "ScreenGui",
+   "insets": "CoreUISafeInsets",
+   "kids": [
+    {
+     "id": 25,
+     "name": "Main",
+     "cls": "Frame",
+     "pos": [
+      0.5,
+      0,
+      0.5,
+      0
+     ],
+     "anchor": [
+      0.5,
+      0.5
+     ],
+     "size": [
+      0,
+      620,
+      0,
+      420
+     ],
+     "bg": [
+      34,
+      37,
+      46
+     ],
+     "corner": [
+      0,
+      12
+     ],
+     "stroke": {
+      "color": [
+       20,
+       22,
+       28
+      ],
+      "t": 0,
+      "px": 2,
+      "text": false
+     },
+     "kids": [
+      {
+       "id": 3,
+       "name": "TopBar",
+       "cls": "Frame",
+       "size": [
+        1,
+        0,
+        0,
+        56
+       ],
+       "bg": [
+        24,
+        26,
+        33
+       ],
+       "corner": [
+        0,
+        12
+       ],
+       "kids": [
+        {
+         "id": 1,
+         "name": "Title",
+         "cls": "TextLabel",
+         "pos": [
+          0,
+          20,
+          0,
+          0
+         ],
+         "size": [
+          0.5,
+          0,
+          1,
+          0
+         ],
+         "bgT": 1,
+         "text": "SHOP",
+         "textColor": [
+          255,
+          255,
+          255
+         ],
+         "textSize": 30,
+         "font": "FredokaOne",
+         "xAlign": "Left"
+        },
+        {
+         "id": 2,
+         "name": "Close",
+         "cls": "TextButton",
+         "pos": [
+          1,
+          -10,
+          0.5,
+          0
+         ],
+         "anchor": [
+          1,
+          0.5
+         ],
+         "size": [
+          0,
+          40,
+          0,
+          40
+         ],
+         "bg": [
+          231,
+          76,
+          60
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "text": "X",
+         "textColor": [
+          255,
+          255,
+          255
+         ],
+         "textSize": 22,
+         "font": "GothamBold"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Tabs",
+       "cls": "Frame",
+       "pos": [
+        0,
+        16,
+        0,
+        66
+       ],
+       "size": [
+        1,
+        -32,
+        0,
+        40
+       ],
+       "bgT": 1,
+       "list": {
+        "dir": "Horizontal",
+        "h": "Left",
+        "v": "Center",
+        "pad": [
+         0,
+         8
+        ]
+       },
+       "kids": [
+        {
+         "id": 4,
+         "name": "Pets",
+         "cls": "TextButton",
+         "size": [
+          0,
+          130,
+          1,
+          0
+         ],
+         "order": 1,
+         "bg": [
+          90,
+          96,
+          112
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "text": "Pets",
+         "textColor": [
+          255,
+          255,
+          255
+         ],
+         "textSize": 18,
+         "font": "GothamBold"
+        },
+        {
+         "id": 5,
+         "name": "Eggs",
+         "cls": "TextButton",
+         "size": [
+          0,
+          130,
+          1,
+          0
+         ],
+         "order": 2,
+         "bg": [
+          60,
+          64,
+          76
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "text": "Eggs",
+         "textColor": [
+          200,
+          200,
+          200
+         ],
+         "textSize": 18,
+         "font": "GothamBold"
+        },
+        {
+         "id": 6,
+         "name": "Passes",
+         "cls": "TextButton",
+         "size": [
+          0,
+          130,
+          1,
+          0
+         ],
+         "order": 3,
+         "bg": [
+          60,
+          64,
+          76
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "text": "Passes",
+         "textColor": [
+          200,
+          200,
+          200
+         ],
+         "textSize": 18,
+         "font": "GothamBold"
+        }
+       ]
+      },
+      {
+       "id": 24,
+       "name": "Items",
+       "cls": "Frame",
+       "pos": [
+        0,
+        16,
+        0,
+        118
+       ],
+       "size": [
+        1,
+        -32,
+        1,
+        -134
+       ],
+       "bgT": 1,
+       "grid": {
+        "cell": [
+         0,
+         136,
+         0,
+         136
+        ],
+        "pad": [
+         0,
+         12,
+         0,
+         12
+        ],
+        "dir": "Horizontal",
+        "h": "Left",
+        "v": "Top"
+       },
+       "kids": [
+        {
+         "id": 11,
+         "name": "Item1",
+         "cls": "Frame",
+         "bg": [
+          58,
+          62,
+          74
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "order": 1,
+         "kids": [
+          {
+           "id": 8,
+           "name": "Icon",
+           "cls": "ImageLabel",
+           "pos": [
+            0.5,
+            0,
+            0,
+            10
+           ],
+           "anchor": [
+            0.5,
+            0
+           ],
+           "size": [
+            0,
+            64,
+            0,
+            64
+           ],
+           "bgT": 1,
+           "image": "rbxassetid://0",
+           "imageColor": [
+            255,
+            200,
+            120
+           ]
+          },
+          {
+           "id": 9,
+           "name": "ItemName",
+           "cls": "TextLabel",
+           "pos": [
+            0,
+            0,
+            0,
+            78
+           ],
+           "size": [
+            1,
+            0,
+            0,
+            22
+           ],
+           "bgT": 1,
+           "text": "Dog",
+           "textColor": [
+            235,
+            235,
+            235
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          },
+          {
+           "id": 10,
+           "name": "Buy",
+           "cls": "TextButton",
+           "pos": [
+            0.5,
+            0,
+            1,
+            -8
+           ],
+           "anchor": [
+            0.5,
+            1
+           ],
+           "size": [
+            0.85,
+            0,
+            0,
+            34
+           ],
+           "bg": [
+            46,
+            204,
+            113
+           ],
+           "corner": [
+            0,
+            6
+           ],
+           "text": "100",
+           "textColor": [
+            255,
+            255,
+            255
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          }
+         ]
+        },
+        {
+         "id": 15,
+         "name": "Item2",
+         "cls": "Frame",
+         "bg": [
+          58,
+          62,
+          74
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "order": 2,
+         "kids": [
+          {
+           "id": 12,
+           "name": "Icon",
+           "cls": "ImageLabel",
+           "pos": [
+            0.5,
+            0,
+            0,
+            10
+           ],
+           "anchor": [
+            0.5,
+            0
+           ],
+           "size": [
+            0,
+            64,
+            0,
+            64
+           ],
+           "bgT": 1,
+           "image": "rbxassetid://0",
+           "imageColor": [
+            200,
+            220,
+            255
+           ]
+          },
+          {
+           "id": 13,
+           "name": "ItemName",
+           "cls": "TextLabel",
+           "pos": [
+            0,
+            0,
+            0,
+            78
+           ],
+           "size": [
+            1,
+            0,
+            0,
+            22
+           ],
+           "bgT": 1,
+           "text": "Cat",
+           "textColor": [
+            235,
+            235,
+            235
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          },
+          {
+           "id": 14,
+           "name": "Buy",
+           "cls": "TextButton",
+           "pos": [
+            0.5,
+            0,
+            1,
+            -8
+           ],
+           "anchor": [
+            0.5,
+            1
+           ],
+           "size": [
+            0.85,
+            0,
+            0,
+            34
+           ],
+           "bg": [
+            46,
+            204,
+            113
+           ],
+           "corner": [
+            0,
+            6
+           ],
+           "text": "250",
+           "textColor": [
+            255,
+            255,
+            255
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          }
+         ]
+        },
+        {
+         "id": 19,
+         "name": "Item3",
+         "cls": "Frame",
+         "bg": [
+          58,
+          62,
+          74
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "order": 3,
+         "kids": [
+          {
+           "id": 16,
+           "name": "Icon",
+           "cls": "ImageLabel",
+           "pos": [
+            0.5,
+            0,
+            0,
+            10
+           ],
+           "anchor": [
+            0.5,
+            0
+           ],
+           "size": [
+            0,
+            64,
+            0,
+            64
+           ],
+           "bgT": 1,
+           "image": "rbxassetid://0",
+           "imageColor": [
+            255,
+            120,
+            120
+           ]
+          },
+          {
+           "id": 17,
+           "name": "ItemName",
+           "cls": "TextLabel",
+           "pos": [
+            0,
+            0,
+            0,
+            78
+           ],
+           "size": [
+            1,
+            0,
+            0,
+            22
+           ],
+           "bgT": 1,
+           "text": "Dragon",
+           "textColor": [
+            235,
+            235,
+            235
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          },
+          {
+           "id": 18,
+           "name": "Buy",
+           "cls": "TextButton",
+           "pos": [
+            0.5,
+            0,
+            1,
+            -8
+           ],
+           "anchor": [
+            0.5,
+            1
+           ],
+           "size": [
+            0.85,
+            0,
+            0,
+            34
+           ],
+           "bg": [
+            46,
+            204,
+            113
+           ],
+           "corner": [
+            0,
+            6
+           ],
+           "text": "5K",
+           "textColor": [
+            255,
+            255,
+            255
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          }
+         ]
+        },
+        {
+         "id": 23,
+         "name": "Item4",
+         "cls": "Frame",
+         "bg": [
+          58,
+          62,
+          74
+         ],
+         "corner": [
+          0,
+          8
+         ],
+         "order": 4,
+         "kids": [
+          {
+           "id": 20,
+           "name": "Icon",
+           "cls": "ImageLabel",
+           "pos": [
+            0.5,
+            0,
+            0,
+            10
+           ],
+           "anchor": [
+            0.5,
+            0
+           ],
+           "size": [
+            0,
+            64,
+            0,
+            64
+           ],
+           "bgT": 1,
+           "image": "rbxassetid://0",
+           "imageColor": [
+            255,
+            180,
+            255
+           ]
+          },
+          {
+           "id": 21,
+           "name": "ItemName",
+           "cls": "TextLabel",
+           "pos": [
+            0,
+            0,
+            0,
+            78
+           ],
+           "size": [
+            1,
+            0,
+            0,
+            22
+           ],
+           "bgT": 1,
+           "text": "Unicorn",
+           "textColor": [
+            235,
+            235,
+            235
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          },
+          {
+           "id": 22,
+           "name": "Buy",
+           "cls": "TextButton",
+           "pos": [
+            0.5,
+            0,
+            1,
+            -8
+           ],
+           "anchor": [
+            0.5,
+            1
+           ],
+           "size": [
+            0.85,
+            0,
+            0,
+            34
+           ],
+           "bg": [
+            46,
+            204,
+            113
+           ],
+           "corner": [
+            0,
+            6
+           ],
+           "text": "12K",
+           "textColor": [
+            255,
+            255,
+            255
+           ],
+           "textSize": 18,
+           "font": "GothamBold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": 29,
+   "name": "Hud",
+   "cls": "ScreenGui",
+   "insets": "CoreUISafeInsets",
+   "kids": [
+    {
+     "id": 28,
+     "name": "Coins",
+     "cls": "Frame",
+     "pos": [
+      0,
+      12,
+      1,
+      -12
+     ],
+     "anchor": [
+      0,
+      1
+     ],
+     "size": [
+      0,
+      170,
+      0,
+      44
+     ],
+     "bg": [
+      0,
+      0,
+      0
+     ],
+     "bgT": 0.4,
+     "corner": [
+      1,
+      0
+     ],
+     "kids": [
+      {
+       "id": 27,
+       "name": "Amount",
+       "cls": "TextLabel",
+       "pos": [
+        0,
+        48,
+        0,
+        0
+       ],
+       "size": [
+        1,
+        -56,
+        1,
+        0
+       ],
+       "bgT": 1,
+       "text": "1,250",
+       "textColor": [
+        255,
+        215,
+        0
+       ],
+       "textSize": 22,
+       "font": "GothamBold",
+       "xAlign": "Left"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "count": 29,
+ "truncated": false,
+ "orientation": null
+}

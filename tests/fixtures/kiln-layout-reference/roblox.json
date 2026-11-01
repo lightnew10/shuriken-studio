@@ -1,0 +1,506 @@
+{
+ "version": 2,
+ "plain": true,
+ "blend": "roblox.blend",
+ "units": "studs",
+ "studs_per_unit": 1.0,
+ "source_version": 1,
+ "uv": "RobloxUV",
+ "ao": false,
+ "materials": [
+  {
+   "name": "Ground_Mat",
+   "plain": true,
+   "roblox_material": "Asphalt",
+   "color": "#55585c",
+   "size": 0,
+   "maps": {},
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "emissive_strength": 0.0,
+   "emissive_tint": null,
+   "transparency": 0.0,
+   "area": 5000.0,
+   "texels_per_unit": 0,
+   "atlas_use": 0,
+   "tris": 12,
+   "objects": 1
+  },
+  {
+   "name": "Wall_North_Mat",
+   "plain": true,
+   "roblox_material": null,
+   "color": "#b0b0b0",
+   "size": 0,
+   "maps": {},
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "emissive_strength": 0.0,
+   "emissive_tint": null,
+   "transparency": 0.0,
+   "area": 486.0,
+   "texels_per_unit": 0,
+   "atlas_use": 0,
+   "tris": 24,
+   "objects": 2
+  },
+  {
+   "name": "Shed_Mat",
+   "plain": true,
+   "roblox_material": null,
+   "color": "#806040",
+   "size": 0,
+   "maps": {},
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "emissive_strength": 0.0,
+   "emissive_tint": null,
+   "transparency": 0.0,
+   "area": 168.0,
+   "texels_per_unit": 0,
+   "atlas_use": 0,
+   "tris": 12,
+   "objects": 1
+  }
+ ],
+ "objects": 4,
+ "tris": 48,
+ "meshes": {
+  "Ground": {
+   "objects": [
+    "Ground"
+   ],
+   "tris": 12
+  },
+  "Shed": {
+   "objects": [
+    "Shed"
+   ],
+   "tris": 12
+  },
+  "Wall_North": {
+   "objects": [
+    "Wall_North",
+    "Wall_South"
+   ],
+   "tris": 12
+  }
+ },
+ "roles": {
+  "Ground": "drivable",
+  "Shed": "decor",
+  "Wall_North": "barrier",
+  "Wall_South": "barrier"
+ },
+ "colliders": [
+  {
+   "name": "Shed_Collider",
+   "stands_for": "Shed"
+  }
+ ],
+ "pieces": {
+  "Arrow": {
+   "project": "fixture-arrow",
+   "version": 1,
+   "fingerprint": "fixture-fixture-arrow",
+   "tris": 36,
+   "placements": 4,
+   "stale": false
+  },
+  "Pillar": {
+   "project": "fixture-pillar",
+   "version": 1,
+   "fingerprint": "fixture-fixture-pillar",
+   "tris": 24,
+   "placements": 3,
+   "stale": false
+  },
+  "Slab": {
+   "project": "fixture-slab",
+   "version": 1,
+   "fingerprint": "fixture-fixture-slab",
+   "tris": 12,
+   "placements": 3,
+   "stale": false
+  }
+ },
+ "placements": [
+  {
+   "name": "Arrow_Plain_001",
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "matrix": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Arrow_Scaled2_001",
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "matrix": [
+    [
+     -2.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     -0.0,
+     -2.0,
+     0.0,
+     10.0
+    ],
+    [
+     0.0,
+     0.0,
+     2.0,
+     2.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Arrow_Turn90_001",
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "matrix": [
+    [
+     -0.0,
+     -1.0,
+     0.0,
+     10.0
+    ],
+    [
+     1.0,
+     -0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Arrow_TurnMinus45_001",
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "matrix": [
+    [
+     0.70711,
+     0.70711,
+     0.0,
+     -10.0
+    ],
+    [
+     -0.70711,
+     0.70711,
+     0.0,
+     5.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Pillar_OnItsBack_001",
+   "piece": "Pillar",
+   "project": "fixture-pillar",
+   "matrix": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     15.0
+    ],
+    [
+     0.0,
+     -0.0,
+     -1.0,
+     -10.0
+    ],
+    [
+     0.0,
+     1.0,
+     -0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Pillar_Plain_001",
+   "piece": "Pillar",
+   "project": "fixture-pillar",
+   "matrix": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     5.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0,
+     -10.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Pillar_Tall_001",
+   "piece": "Pillar",
+   "project": "fixture-pillar",
+   "matrix": [
+    [
+     0.86603,
+     -0.5,
+     0.0,
+     -5.0
+    ],
+    [
+     0.5,
+     0.86603,
+     0.0,
+     -10.0
+    ],
+    [
+     0.0,
+     0.0,
+     2.5,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Slab_Plain_001",
+   "piece": "Slab",
+   "project": "fixture-slab",
+   "matrix": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     -20.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0,
+     -15.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Slab_Stretched_001",
+   "piece": "Slab",
+   "project": "fixture-slab",
+   "matrix": [
+    [
+     0.0,
+     2.0,
+     0.0,
+     -20.0
+    ],
+    [
+     -0.5,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "Slab_Tilted_001",
+   "piece": "Slab",
+   "project": "fixture-slab",
+   "matrix": [
+    [
+     1.2207,
+     -0.66145,
+     0.56778,
+     12.0
+    ],
+    [
+     0.70477,
+     1.32385,
+     0.02704,
+     12.0
+    ],
+    [
+     -0.51303,
+     0.24476,
+     1.38812,
+     1.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  }
+ ],
+ "mirrored_placements": [],
+ "markers": [
+  {
+   "name": "Spawn_A",
+   "role": "spawn",
+   "matrix": [
+    [
+     -0.0,
+     -1.0,
+     0.0,
+     -25.0
+    ],
+    [
+     1.0,
+     -0.0,
+     0.0,
+     -18.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.5
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  }
+ ],
+ "paths": [
+  {
+   "name": "Center_Line",
+   "role": "road_centerline",
+   "points": [
+    [
+     -25.0,
+     -18.0,
+     0.0
+    ],
+    [
+     0.0,
+     -18.0,
+     0.0
+    ],
+    [
+     25.0,
+     -10.0,
+     0.0
+    ],
+    [
+     25.0,
+     10.0,
+     0.0
+    ]
+   ],
+   "width": 8.0,
+   "closed": false
+  }
+ ],
+ "joints": 0,
+ "clips": [],
+ "device": null,
+ "seconds": 0.1
+}

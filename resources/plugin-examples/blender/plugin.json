@@ -1,0 +1,16 @@
+{
+  "id": "blender",
+  "name": "Blender (example)",
+  "version": "0.1.0",
+  "description": "Example plugin: exposes a Blender MCP server so modeling agents can create and export geometry. Copy this folder to %APPDATA%/Shuriken/plugins/blender, install the server, then set enabled to true.",
+  "enabled": false,
+  "trust": "allow",
+  "mcpServers": {
+    "blender": {
+      "command": "uvx",
+      "args": ["blender-mcp"],
+      "description": "Community Blender MCP server (requires Blender with its add-on running)."
+    }
+  },
+  "skills": "skills"
+}

@@ -1,0 +1,283 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/fraunces/full.css';
+@import '@fontsource-variable/fraunces/full-italic.css';
+
+/* Shuriken Studio: warm charcoal surfaces, one confident orange (the default theme; Teal below). */
+@theme {
+  --color-bg: #0e0c0b;
+  --color-bg2: #131110;
+  --color-surface: #181513;
+  --color-surface2: #201c19;
+  --color-surface3: #2a2521;
+  --color-line: #2b2622;
+  --color-line2: #3a332d;
+  --color-text: #f4ede6;
+  --color-dim: #b9ada2;
+  --color-faint: #7f746b;
+  --color-accent: #ff7a1a;
+  --color-accent2: #ffb454;
+  --color-ember: #e0480f;
+  --color-on-accent: #1a0d04;
+  --color-accent-hover: #ff8d3a;
+  --color-mark-hi: #ffc46b;
+  --color-mark-edge: #ffd08a;
+  --color-strip: #080706;
+  --color-code: #0b0a09;
+  --color-ok: #57d68d;
+  --color-warn: #f5b942;
+  --color-bad: #ff6b5e;
+  --color-info: #6cb2ff;
+  --font-sans: 'Geist Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'Cascadia Code', Consolas, monospace;
+  --font-display: 'Fraunces Variable', Georgia, serif;
+  --radius-card: 14px;
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Teal (lib/appearance.ts): cool charcoal with a hint of sea-green, one clear teal. The same roles as the orange
+ * theme's tokens, so every component follows; canvas and WebGL drawing read the tokens (themeColor).
+ */
+html[data-theme='teal'] {
+  --color-bg: #0a0e0f;
+  --color-bg2: #0d1213;
+  --color-surface: #111819;
+  --color-surface2: #172022;
+  --color-surface3: #1f2a2c;
+  --color-line: #1d2729;
+  --color-line2: #2a383a;
+  --color-text: #e9f3f1;
+  --color-dim: #a2b8b4;
+  --color-faint: #6a807c;
+  --color-accent: #19c2ae;
+  --color-accent2: #6fe3d2;
+  --color-ember: #0a8f80;
+  --color-on-accent: #021a17;
+  --color-accent-hover: #3ad3bf;
+  --color-mark-hi: #8af0e2;
+  --color-mark-edge: #b5f7ee;
+  --color-strip: #050909;
+  --color-code: #080c0d;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line2) transparent;
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+/* Room for the window's controls when a page sits under them (not in a tab below the strip). */
+.overlay-pad {
+  padding-right: 150px;
+}
+html[data-tab] .overlay-pad {
+  padding-right: 12px;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cards: the dashboard's containers and raised surfaces. */
+.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0) 38%), var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Markdown rendered from agents (plan notes, transcripts). */
+.md {
+  line-height: 1.6;
+}
+.md p {
+  margin: 0 0 0.6em;
+}
+.md p:last-child {
+  margin-bottom: 0;
+}
+.md ul,
+.md ol {
+  margin: 0.3em 0 0.6em;
+  padding-left: 1.3em;
+}
+.md li {
+  margin: 0.15em 0;
+}
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.08em 0.35em;
+  border-radius: 4px;
+}
+.md pre {
+  background: var(--color-code);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md a {
+  color: var(--color-accent2);
+}
+.md h1,
+.md h2,
+.md h3 {
+  font-weight: 600;
+  margin: 0.7em 0 0.35em;
+}
+.md strong {
+  color: var(--color-text);
+}
+
+/* Pixel shuriken: each pixel falls a little and fades, then snaps back, staggered. */
+@keyframes px-fall {
+  0%,
+  12% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  46% {
+    transform: translate(var(--dx, 0px), var(--dy, 3px));
+    opacity: 0;
+  }
+  47% {
+    transform: translate(0, -1.5px);
+    opacity: 0;
+  }
+  70%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+.px-active rect {
+  animation: px-fall 1.8s var(--ease-out-soft) infinite;
+  animation-delay: var(--d, 0ms);
+  transform-box: fill-box;
+}
+
+/* The working mark everywhere else: the whole shuriken turns a quarter (four-fold symmetry: it lands where it
+   began). One transform animation per mark, run by the compositor; see brand/logo.tsx for what 52 per mark cost. */
+@keyframes px-spin {
+  0%,
+  18% {
+    transform: rotate(0deg);
+  }
+  82%,
+  100% {
+    transform: rotate(90deg);
+  }
+}
+.px-spin {
+  animation: px-spin 0.9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  will-change: transform;
+}
+
+@keyframes shimmer-dots {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .px-active rect {
+    animation-duration: 3.6s;
+  }
+  .px-spin {
+    animation-duration: 2.4s;
+  }
+  * {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* xterm inside modals */
+.xterm {
+  padding: 8px;
+}
+
+/* Start page headline: weight and softness breathe slowly (Fraunces variable axes). */
+@keyframes headline-breathe {
+  0%,
+  100% {
+    font-variation-settings: 'wght' 300, 'SOFT' 30, 'opsz' 144;
+  }
+  50% {
+    font-variation-settings: 'wght' 480, 'SOFT' 100, 'opsz' 144;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*='headline-breathe'] {
+    animation: none !important;
+  }
+}
+
+/* react-grid-layout: placeholder and handles in the app's language. */
+.react-grid-item.react-grid-placeholder {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
+  border: 1px dashed color-mix(in srgb, var(--color-accent) 60%, transparent);
+  border-radius: 14px;
+  opacity: 1 !important;
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-color: color-mix(in srgb, var(--color-accent2) 70%, transparent) !important;
+}

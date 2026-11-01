@@ -1,0 +1,124 @@
+{
+  "name": "shuriken-studio",
+  "productName": "Shuriken Studio",
+  "version": "1.16.1",
+  "description": "Shuriken Studio: a free, open-source AI game studio for Roblox. A team of AI agents builds games in Roblox Studio from a prompt.",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "author": "The Shuriken Studio authors",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "dist:bundle": "node scripts/dist-bundle.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "sessions": "node scripts/sessions.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.284",
+    "@breezystack/lamejs": "^1.2.7",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "dompurify": "^3.4.16",
+    "electron-updater": "^6.8.9",
+    "lucide-react": "^1.48.0",
+    "marked": "^18.0.14",
+    "motion": "^13.4.4",
+    "node-pty": "^1.1.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-grid-layout": "^2.2.4",
+    "three": "^0.186.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^24.19.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.11"
+  },
+  "build": {
+    "appId": "com.shurikenstudio.app",
+    "productName": "Shuriken Studio",
+    "copyright": "Copyright (c) 2026 The Shuriken Studio authors",
+    "directories": {
+      "output": "build-out",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources"
+      },
+      {
+        "from": "build/bundle/kiln",
+        "to": "kiln",
+        "filter": [
+          "Kiln-Setup.exe"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/**",
+      "node_modules/node-pty/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "executableName": "Shuriken"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Shuriken Studio",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "include": "build/installer.nsh"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://shuriken.studio/updates/shuriken-studio"
+      }
+    ],
+    "npmRebuild": false
+  }
+}

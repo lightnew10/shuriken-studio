@@ -1,0 +1,1239 @@
+[
+ {
+  "key": "studio-mcp-built-in-server",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Studio's built-in MCP server is the supported agent integration",
+  "body": "Roblox Studio ships a built-in MCP server that lets AI clients explore the DataModel, run Luau, edit scripts, playtest, capture the viewport and use assets. Enable it in Assistant → … → Manage MCP Servers → 'Enable Studio as MCP server'; since 2026-09-23 it starts when the Assistant plugin initializes, so the Assistant panel no longer needs to be opened each session. The open-source Roblox/studio-rust-mcp-server was archived on 2026-04-03 and should not be used. Roblox warns that connected MCP clients can read and modify content in open places, so only trusted clients should connect.",
+  "tags": [
+   "mcp",
+   "studio",
+   "assistant",
+   "setup"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/studio/mcp",
+    "title": "Studio MCP server",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://github.com/Roblox/studio-rust-mcp-server",
+    "title": "Roblox/studio-rust-mcp-server (archived)",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/assistant-updates-studio-built-in-mcp-server-and-playtest-automation/4474643",
+    "title": "Built-in MCP server and playtest automation (2026-03-05)",
+    "authority": "staff"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/studio-mcp-multi-agent-improvements-and-connected-ai-clients/4820583",
+    "title": "Studio MCP multi-agent improvements",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "studio-mcp-architecture",
+  "scope": "roblox",
+  "category": "research",
+  "title": "How StudioMCP.exe, the proxy port and the Assistant plugin fit together",
+  "body": "Each MCP client spawns its own StudioMCP.exe over stdio. The first instance binds a WebSocket host on 127.0.0.1:13469 (routes /studio and /proxy) and later instances join it as proxies; Studio's built-in Assistant plugin connects to /studio and implements every tool in Luau. Tools ship over the air with the Assistant plugin and fast flags, independent of the Studio version, so hosts should discover them dynamically and honour tools/list_changed. On Windows, spawn the newest %LOCALAPPDATA%\\Roblox\\Versions\\*\\StudioMCP.exe directly: the generated mcp.bat hardcodes one version folder and its fallback has invalid batch syntax. After a Studio update restart the MCP client; 'Target is unreachable' or 'Client proxy is out of date' means plugin and proxy versions differ and Studio must be restarted.",
+  "tags": [
+   "mcp",
+   "studio",
+   "architecture",
+   "windows",
+   "troubleshooting"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4687777/5",
+    "title": "Staff diagnostic for port 13469",
+    "authority": "staff"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/assistant-updates-multiple-chats-and-chat-history/4668130",
+    "title": "'Target is unreachable' after updates: restart Studio",
+    "authority": "staff"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4659938",
+    "title": "mcp.bat failures on Windows",
+    "authority": "community"
+   }
+  ]
+ },
+ {
+  "key": "studio-mcp-studio-id",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Every Studio MCP tool call needs a studio_id (since 2026-08-19)",
+  "body": "Since 2026-08-19 every Studio MCP tool except list_roblox_studios takes a required studio_id, and set_active_studio was removed; list_roblox_studios returns each connected Studio's id, name and place ID (unpublished local places are listed by name only). This makes several Studios and several agents or clients on one machine reliable. Treat ids as ephemeral: re-list after 'studio not connected' errors, reconnects or place reloads, and bind by place name or ID rather than a cached id. An empty list usually means no place is open, MCP is disabled, or the plugin loaded after the proxy started.",
+  "tags": [
+   "mcp",
+   "studio",
+   "studio_id",
+   "multi-agent"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/studio/mcp",
+    "title": "Studio MCP server",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/studio-mcp-multi-agent-improvements-and-connected-ai-clients/4820583",
+    "title": "studio_id on every tool, set_active_studio removed",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "studio-mcp-tool-inventory",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Studio MCP tool set (Sept 2026)",
+  "body": "The live server exposes 28 tools: list_roblox_studios, get_studio_state, start_stop_play, execute_luau, multi_edit, script_read, script_search, script_grep, search_game_tree, inspect_instance, get_console_output, screen_capture, user_keyboard_input, user_mouse_input, character_navigation, search_asset, insert_asset, generate_mesh, generate_material, generate_texture, generate_procedural_model, segment_mesh, wait_job_finished, store_image, upload_image, http_get, skill and subagent. The docs table lists 26; generate_texture and segment_mesh shipped on 2026-09-23. The input tools and character_navigation only work in the Client DataModel during a playtest. http_get only fetches allow-listed create.roblox.com/docs pages; skill serves Roblox's rbx-* skills; subagent runs Roblox-hosted helpers (explore, screen_capture, unit_test; playtest is a Studio beta).",
+  "tags": [
+   "mcp",
+   "studio",
+   "tools"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Studio 0.740 / Assistant plugin 1233c9b / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/studio/mcp",
+    "title": "Studio MCP server tool table",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/introducing-new-texture-generation-tools-segment-any-mesh-and-image-previews/4890084",
+    "title": "Texture generation and segment any mesh (2026-09-23)",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "studio-mcp-output-limits",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Studio MCP output caps and screenshot format",
+  "body": "script_search returns at most 10 results, script_grep 50 matches and inspect_instance 20 path matches; search_game_tree defaults to max_depth 3 (maximum 10) and head_limit 200 rows. execute_luau results and get_console_output are truncated by fast-flag limits whose defaults are not public, so probes should return compact JSON summaries rather than dumps. screen_capture returns JPEG (about a third of PNG size) to fit Claude clients' roughly 1 MB tool-result limit; it needs a capture_id and accepts an optional camera_position and look_at_position. Captures taken during play have been reported to omit BillboardGuis, default ProximityPrompt UI and the top bar.",
+  "tags": [
+   "mcp",
+   "studio",
+   "limits",
+   "screenshot",
+   "output"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/assistant-updates-mesh-generation-new-mcp-server-tools-screenshot-tool-and-more/4527258",
+    "title": "Screenshot tool: JPEG for the 1 MB result limit",
+    "authority": "staff"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4736693",
+    "title": "Play-mode captures omit some UI",
+    "authority": "community"
+   }
+  ]
+ },
+ {
+  "key": "execute-luau-security-context",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "execute_luau runs with plugin-level access; don't use it to edit script source",
+  "body": "execute_luau takes a datamodel_type of Edit, Server or Client (Server and Client exist only during a playtest) and runs through the Assistant's internal bridge with plugin-level rights. Script.Source and ModuleScript.Source require the PluginOrOpenCloud security capability, which that context has, so writing Source is technically possible. Roblox's own tool description forbids it, and it bypasses the script editor pipeline and version history; use multi_edit or, in file-based workflows, edit the synced files on disk. print() output goes to the Studio console, not to the tool result: return a string to get data back.",
+  "tags": [
+   "mcp",
+   "execute_luau",
+   "security",
+   "capabilities",
+   "scripts"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/studio/mcp",
+    "title": "Studio MCP server",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/Script",
+    "title": "Script.Source capability",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/enums/SecurityCapability",
+    "title": "SecurityCapability.PluginOrOpenCloud",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/assistant-updates-mesh-generation-new-mcp-server-tools-screenshot-tool-and-more/4527258",
+    "title": "Staff: use the built-in script tools that respect ScriptEditorService",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "execute-luau-play-datamodel-require",
+  "scope": "roblox",
+  "category": "research",
+  "title": "In play DataModels execute_luau runs in a separate VM with fresh module instances",
+  "body": "During a playtest, execute_luau code in the Server or Client DataModel runs in its own Lua VM beside the game's scripts. require(ModuleScript) there returns a fresh module instance, so module-level runtime state (session tables, caches, counters) is invisible and reads as defaults; reading instances, attributes, values and .Source works. Probes should assert on observable state (attributes, leaderstats, instances) rather than module state. In the Edit DataModel the require cache can be stale after source changes: require a clone of the module tree, or use StudioTestService:ExecuteRunModeAsync, which runs in a fresh DataModel.",
+  "tags": [
+   "mcp",
+   "execute_luau",
+   "testing",
+   "require",
+   "playtest"
+  ],
+  "confidence": 0.75,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4849810",
+    "title": "execute_luau in play DataModels uses a separate VM",
+    "authority": "community"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4527258/46",
+    "title": "Stale require cache; staff suggests ExecuteRunModeAsync",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "execute-luau-capability-regression-2026-09",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Sept 2026 capability sandboxing briefly broke require inside execute_luau",
+  "body": "From 2026-09-14, freshly launched Studios ran MCP code with SecurityCapabilities derived from Assistant/MCP permission grants; the thread lacked LoadUnownedAsset, ScriptGlobals, DataStore and Network, so require of ordinary ModuleScripts failed and parenting scripts into Workspace or ReplicatedStorage broke. Staff shipped a fix on 2026-09-18 that applies after restarting Studio. The Fall 2026 roadmap announces 'Unified agentic permission' across Assistant, MCP, Plugins and Open Cloud Luau Execution for late 2026, so the capability model of MCP execution will likely change again; probe it on connect with a trivial require and fail loudly.",
+  "tags": [
+   "mcp",
+   "execute_luau",
+   "capabilities",
+   "regression",
+   "roadmap"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Studio 0.738–0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4872775",
+    "title": "require fails inside MCP execute_luau (report)",
+    "authority": "community"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4872775/6",
+    "title": "Staff: fix rolled out, restart Studio",
+    "authority": "staff"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/creator-roadmap-2026-fall-update/4880208",
+    "title": "Creator Roadmap Fall 2026",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "execute-luau-capability-restriction-2026-10",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Since 2026-10-01 MCP code runs without script capabilities: 'cannot reparent … Capabilities property: LoadUnownedAsset (and 3 more)'. Restarting Studio does not help",
+  "body": "On 2026-10-01 at 23:17 UTC Roblox switched on FFlagAssistantCapsRestrictDataStore2 (no Studio update: flags are fetched at every launch). Every Studio launched after that runs execute_luau without four script capabilities. Measured in a scratch place that evening, in Edit and in a playtest's Server and Client. REFUSED to MCP code: parenting a Script, LocalScript or ModuleScript anywhere (new, cloned, moved, or inside a model such as a default character with its Animate script); require of a game module; firing or invoking BindableEvents, RemoteEvents and functions. STILL FINE: parts, folders and every other instance; properties and attributes; an existing script's Source, name and attributes; destroying a script; Studio's own script tool (multi_edit) creating scripts with their folders; the game's own scripts, which run with everything as always. A Studio restart changes nothing, and neither does any setting in the place: do not ask the user for either. What Shuriken does about it: roblox_sync_push creates the refused scripts through the script tool and writes their source as before, so code goes into files and is synced as always; in a playtest, a probe that requires a module, fires or invokes, clones or makes a script runs inside the game through a host script (ShurikenProbeHost, put in before the playtest and removed after), where it has the game's rights but cannot read Script.Source or use plugin-only APIs, so read sources in a separate probe. In Edit there is no such host: do not require modules or create scripts from roblox_run_luau in Edit; put the logic in a file, sync it, and prove it in a playtest. A model with scripts in it can be parented once its scripts are removed from the detached copy.",
+  "tags": [
+   "mcp",
+   "execute_luau",
+   "capabilities",
+   "sandbox",
+   "sync",
+   "playtest",
+   "require",
+   "reparent"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Studio 0.741 / from 2026-10-01",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://github.com/MaximumADHD/Roblox-FFlag-Tracker/blob/main/FVariables/FFlag/A/FFlagAssistantCapsRestrictDataStore2.json",
+    "title": "FFlagAssistantCapsRestrictDataStore2 first seen 2026-10-01T23:17Z (flag tracker)",
+    "authority": "community"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/capabilities",
+    "title": "Script capabilities",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "shuriken-link-plugin-2026-10",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Shuriken Link: when Shuriken's Studio plugin is linked, Studio Luau has a plugin's rights again (scripts, require, events), in Edit and in playtests",
+  "body": "Shuriken keeps a plugin in Roblox Studio (Shuriken Link) and runs roblox_run_luau, playtest probes and the code sync through it whenever the project's place is linked; your Capabilities section says which holds right now (\"Studio code runs through Shuriken's Studio plugin\" or \"Studio runs your Luau without script capabilities\"). Through the plugin the 2026-10-01 restriction on Studio's MCP path does not apply. Measured in a scratch place: in Edit the code may create, copy and move scripts, set their Source, require game modules and fire events (3-20 ms a call); in a playtest's server the same, and it may read Script.Source there (7-17 ms); in a playtest's client the same through a relay (about 60 ms). A server probe and a client probe now run side by side, so a client thread left running no longer stalls while a server probe runs. Still not possible from any Studio Luau: VirtualInputManager and VirtualUser (use roblox_input), and loadstring inside a playtest. Game code still belongs in files, synced with roblox_sync_push: scripts made by a probe are for the check at hand and are not kept. When the plugin is not linked (a Studio window that was open before the plugin was installed, or the plugin switched off in Settings), the restriction and its workarounds apply as described in the entry on 2026-10-01. Edit work during a playtest (measured 2026-10-01, Studio 0.741): the plugin's Edit instance keeps running while Studio plays, 17 ms a call; a script's Source, new scripts, new parts and properties changed in the Edit DataModel during play do not reach the running game (it is the copy made when play started), are kept when play stops, and are in the next playtest. Studio's own MCP server refuses the same work (\"Edit datamodel is not available in Play mode\"). So with the plugin linked, code syncs and Edit Luau go on during other agents' playtests; only playtests, screenshots and Studio's own Edit-only tools take turns.",
+  "tags": [
+   "mcp",
+   "execute_luau",
+   "capabilities",
+   "plugin",
+   "shuriken-link",
+   "playtest",
+   "require"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Shuriken 1.12 / Studio 0.741",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/capabilities",
+    "title": "Script capabilities",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "studio-mcp-play-transitions",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Playtest transitions are the main source of Studio MCP failures",
+  "body": "Starting a playtest takes over the whole Studio: tools targeting the Edit DataModel are rejected until play stops, for every connected agent. start_stop_play is asynchronous, so poll get_studio_state until the Server/Client DataModels appear or disappear, and never issue stop and start back to back (busy and hang bugs were fixed on 2026-08-11 and 2026-08-20). Only one Server and one Client DataModel are addressable even in multi-client tests, and during play the search tools only see the focused DataModel. Changes made in play DataModels are discarded when play stops.",
+  "tags": [
+   "mcp",
+   "playtest",
+   "start_stop_play",
+   "datamodel"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/studio-mcp-multi-agent-improvements-and-connected-ai-clients/4820583",
+    "title": "Staff: Play mode takes over the whole Studio",
+    "authority": "staff"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/studio/mcp",
+    "title": "Studio MCP server (DataModel types)",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "studio-mcp-claude-code-2-1-281",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Claude Code 2.1.281+ protocol negotiation broke Studio MCP (fixed 2026-09-27)",
+  "body": "Around 2026-09-25, Claude Code 2.1.281 and later changed MCP protocol negotiation and could no longer talk to StudioMCP. Roblox shipped a fix on 2026-09-27 that takes effect after restarting Studio; the interim workaround was setting MCP_PROTOCOL_NEGOTIATION=legacy for the client. Clients that sent server/discover before initialize have also made StudioMCP drop the stdio connection, so hosts should use a plain legacy initialize handshake.",
+  "tags": [
+   "mcp",
+   "claude-code",
+   "troubleshooting",
+   "protocol"
+  ],
+  "confidence": 0.7,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4896239/3",
+    "title": "Staff: Claude Code 2.1.281 fix",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "creator-store-asset-vetting",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Vet Creator Store models before they can run",
+  "body": "Creator Store rules prohibit distributed assets from loading remote code via require(assetId) or loadstring and from shipping obfuscated code, but violations still get through, so every model with scripts must be inspected before it can run. Studio can disable an inserted object's scripts from the Explorer context menu (Disable Scripts). Grep every script for require(<number>), loadstring, getfenv/setfenv, HttpService, MarketplaceService, TeleportService, InsertService and escape-sequence obfuscation, look for stray RemoteEvents, and strip scripts from purely visual models. The Studio MCP insert_asset tool additionally sandboxes inserted scripts (observed in the Assistant plugin, Sept 2026), which limits damage but does not replace review.",
+  "tags": [
+   "assets",
+   "creator-store",
+   "security",
+   "backdoor",
+   "insert_asset"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/production/creator-store",
+    "title": "Creator Store",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "ocale-endpoints-auth",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Open Cloud Luau Execution: endpoints and auth",
+  "body": "Base URL https://apis.roblox.com with an x-api-key header. Create a task with POST /cloud/v2/universes/{u}/places/{p}/luau-execution-session-tasks (head version) or /cloud/v2/universes/{u}/places/{p}/versions/{v}/luau-execution-session-tasks (pinned version); poll the returned path verbatim (…/luau-execution-sessions/{s}/tasks/{t}) and read logs from …/tasks/{t}/logs. Auth is API key only, with scope universe.place.luau-execution-session:write to create and :read or :write to poll; the experience must be published. Task states are QUEUED, PROCESSING, COMPLETE, FAILED and CANCELLED (QUEUED is not terminal); error codes include SCRIPT_ERROR, DEADLINE_EXCEEDED, OUTPUT_SIZE_LIMIT_EXCEEDED and INTERNAL_ERROR.",
+  "tags": [
+   "open-cloud",
+   "luau-execution",
+   "ci",
+   "api"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Open Cloud v2 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/cloud/reference/features/luau-execution",
+    "title": "Luau Execution API",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/beta-open-cloud-engine-api-for-executing-luau/3172185",
+    "title": "Open Cloud engine API for executing Luau",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "ocale-limits-environment",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Open Cloud Luau Execution limits and runtime environment",
+  "body": "A task runs for at most 5 minutes (custom timeout 1–300 s), with scripts up to 4 MB, JSON return values up to 4 MB (else OUTPUT_SIZE_LIMIT_EXCEEDED), 450 KB of retained logs, at most 10 incomplete tasks per place, and task data kept 24 h. Creating tasks is limited to 5 per minute per API-key owner (head creates allowed 40/min until 2026-09-16). Each task is a fresh game server at GameScript identity: physics does not run, place scripts do not auto-run, changes stay local to the task, Script.Source is accessible and SavePlaceAsync works. DataStores are the live ones, so tests can touch production data.",
+  "tags": [
+   "open-cloud",
+   "luau-execution",
+   "ci",
+   "limits"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Open Cloud v2 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/cloud/reference/features/luau-execution",
+    "title": "Luau Execution API",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/cloud/reference/rate-limits",
+    "title": "Open Cloud rate limits",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/beta-open-cloud-engine-api-for-executing-luau/3172185",
+    "title": "Staff posts on identity, timeouts and SavePlaceAsync",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "ocale-hidden-hourly-cap",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Undocumented ~30 task creates per hour on Luau Execution (Sept 2026)",
+  "body": "Since mid-September 2026, creating Luau Execution tasks has also been capped at roughly 30 per rolling hour per API-key owner, shared across keys, universes and head or pinned creates. Exceeding it returns HTTP 429 RESOURCE_EXHAUSTED ('Luau task creation rate limit exceeded') with retry-after up to about 3600 s and x-roblox-system-reason: dmaas, and it is not visible in the x-ratelimit-* headers. Staff said they are working on restoring the limits. Run a whole test suite inside a single task and honour retry-after.",
+  "tags": [
+   "open-cloud",
+   "luau-execution",
+   "rate-limit",
+   "ci"
+  ],
+  "confidence": 0.7,
+  "versionApplicability": "Sept 2026 (may be temporary)",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4890044",
+    "title": "Hidden hourly cap report",
+    "authority": "community"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/4890044/2",
+    "title": "Staff acknowledgement",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "script-sync-facts",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Studio Script Sync: what it syncs and its limits",
+  "body": "Script Sync (full release 2026-06-17) mirrors Scripts, LocalScripts, ModuleScripts and Folders between Studio and a local directory in both directions; other instance types in a synced folder are ignored and PackageLinks are not written. It is set up by right-clicking folders in the Explorer → Sync to…, resumes automatically when the place reopens, and has no public API to start a sync: InstanceFileSyncService (PluginSecurity) only offers GetStatus, GetAllInstances, GetSyncedInstance and StatusChanged. Limits are 10,000 scripts per top-level synced instance and 128 top-level instances. Don't sync scripts with attributes or tags (they are not written to disk and can be lost); script names must be filesystem-safe and unique, and in Team Create new instances under a synced tree get a numeric suffix.",
+  "tags": [
+   "script-sync",
+   "studio",
+   "files",
+   "version-control"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/sync",
+    "title": "Script Sync",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/InstanceFileSyncService",
+    "title": "InstanceFileSyncService",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/full-release-studio-script-sync/4688454",
+    "title": "Full release: Studio Script Sync",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "script-sync-file-naming",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Script Sync file names map to script classes; .client.luau is not a LocalScript",
+  "body": "Script Sync maps name.luau → ModuleScript, name.server.luau → Script (RunContext Server), name.client.luau → Script (RunContext Client), name.local.luau → LocalScript, name.legacy.luau → Script (Legacy), name.plugin.luau → Script (Plugin), a directory → Folder, and name/init.*.luau → a script of that type with children. A Script with RunContext Client inside a Starter container (StarterPlayerScripts, StarterCharacterScripts, StarterGui, StarterPack) runs twice, as the original and as the per-player copy, so client entry points there must be .local.luau LocalScripts. Scripts with RunContext Client are appropriate in ReplicatedStorage or ReplicatedFirst.",
+  "tags": [
+   "script-sync",
+   "naming",
+   "runcontext",
+   "localscript"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/sync",
+    "title": "Script Sync naming rules",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/locations",
+    "title": "Script types and locations",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "script-sync-operational-rules",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Script Sync operational pitfalls",
+  "body": "Dot-prefixed directories are ignored and empty folders are not synced, and a script cannot be named init because init files stand for their folder. Deleting a synced root directory on disk while it is linked makes Studio error: stop sync from Studio first (or empty the directory instead). When a sync resumes with differences, Studio shows a conflict dialog (default setting: do not resume) and the side you don't keep is overwritten; projects have reported disk files deleted this way bypassing the Recycle Bin, so commit to git before re-linking. When sync stops, Studio prints the reason to the Output window.",
+  "tags": [
+   "script-sync",
+   "pitfalls",
+   "git"
+  ],
+  "confidence": 0.75,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/sync",
+    "title": "Script Sync key tips",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/full-release-studio-script-sync/4688454",
+    "title": "Script Sync GA thread (staff replies)",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "rojo-2026-status",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Rojo 7.7 remains the filesystem-first alternative to Script Sync",
+  "body": "Rojo 7.7.0 (2026-07-02) is maintained and added rojo syncback (convert an existing place into a Rojo project), WebSocket and MessagePack serving, and Host/Origin checks. Roblox's docs recommend Script Sync when you only want an external editor and version control for code, and a tool like Rojo when the whole project, not just code, should live on disk as the source of truth. Rojo does not support Team Create while Script Sync does, and rojo build can produce a place file for CI uploads.",
+  "tags": [
+   "rojo",
+   "tooling",
+   "script-sync",
+   "ci"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Rojo 7.7.0 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/projects/external-tools",
+    "title": "Third-party tools",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/sync",
+    "title": "Script Sync: when to use it",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://github.com/rojo-rbx/rojo",
+    "title": "rojo-rbx/rojo",
+    "authority": "community"
+   }
+  ]
+ },
+ {
+  "key": "jest-roblox-official-testing",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Jest Roblox is Roblox's maintained test framework; TestEZ is archived",
+  "body": "Roblox/jest-roblox is the official Luau port of Jest (3.20.0 on Wally as roblox/jest, also available as a Creator Store asset); specs are .spec.luau files under __tests__, and Roblox uses it for its apps, core scripts and built-in plugins. It runs inside Roblox, including through Open Cloud Luau Execution for CI. Roblox/testez is archived and unmaintained, the jsdotlua/jest-lua fork has been stale since 3.10.0 (Dec 2024), and run-in-roblox (0.3.0, 2020) is effectively dead.",
+  "tags": [
+   "testing",
+   "jest",
+   "testez",
+   "ci"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://github.com/Roblox/jest-roblox",
+    "title": "Roblox/jest-roblox",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://github.com/Roblox/testez",
+    "title": "Roblox/testez (archived)",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://github.com/jsdotlua/jest-lua",
+    "title": "jsdotlua/jest-lua",
+    "authority": "community"
+   }
+  ]
+ },
+ {
+  "key": "studio-test-service",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "StudioTestService runs scripted playtests in fresh DataModels",
+  "body": "StudioTestService offers plugin-security methods ExecutePlayModeAsync(args), ExecuteRunModeAsync(args) and ExecuteMultiplayerTestAsync(numPlayers, args) (up to 8 clients). Inside the test, GetTestArgs returns the args and EndTest(value) on the server ends the test and returns the value to the caller; AddPlayers, CanLeaveTest and LeaveTest also exist, and EditModeActive tells whether Studio is in Edit mode. Each call yields until the test ends and uses a fresh DataModel, which also clears module caches. The test runs all place scripts (gate test-only behaviour on GetTestArgs), takes over the viewport, and only one multiplayer session runs per Studio.",
+  "tags": [
+   "testing",
+   "studio",
+   "playtest",
+   "multiplayer"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/StudioTestService",
+    "title": "StudioTestService",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/studio/testing-modes",
+    "title": "Studio testing modes",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/introducing-studiotestservice/4116257",
+    "title": "Introducing StudioTestService",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "lune-offline-luau",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Lune runs Luau outside Roblox for pure-logic tests and build scripts",
+  "body": "Lune (lune-org/lune, 0.10.5 released 2026-07-02) is a standalone Luau runtime; its @lune/roblox library reads and writes place and model files and manipulates Instances and datatypes. It does not run the engine (no physics, replication or real services), so it suits pure-logic module tests, asset and build scripts, and static transforms, not gameplay integration tests.",
+  "tags": [
+   "lune",
+   "luau",
+   "testing",
+   "tooling"
+  ],
+  "confidence": 0.75,
+  "versionApplicability": "Lune 0.10.5 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://github.com/lune-org/lune",
+    "title": "lune-org/lune",
+    "authority": "community"
+   }
+  ]
+ },
+ {
+  "key": "mcp-generation-limits",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Studio generation tools: limits and quotas",
+  "body": "generate_mesh accepts maxTriangles from 12 to 20000 (the Assistant defaults to 10,000) and up to 8 named parts; segment_mesh splits into at most 5 parts per call; procedural models are limited to 50 per rolling 24 hours and are built from primitive parts as attribute-driven ProceduralModels. At most 5 generation jobs run concurrently, so start long generations with async=true and collect them with wait_job_finished (default timeout 600 s). Moderation can reject prompts without a clear error, and weapons only generate in experiences rated mild violence or higher.",
+  "tags": [
+   "generation",
+   "mcp",
+   "procedural",
+   "mesh",
+   "quota"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/parts/procedural-models",
+    "title": "Procedural models",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/assistant/guide",
+    "title": "Assistant guide (mesh generation)",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/introducing-new-texture-generation-tools-segment-any-mesh-and-image-previews/4890084",
+    "title": "Texture generation and segment any mesh",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "generation-service-generate-model-async",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "GenerationService:GenerateModelAsync for in-experience 3D generation",
+  "body": "GenerationService:GenerateModelAsync(inputs, schema, options?) yields and requires the DynamicGeneration capability. inputs take a TextPrompt and/or an Image, an approximate Size, optional MaxTriangles, and GenerateTextures (default true); schema is either a PredefinedSchema ('Car5' for a five-model vehicle chassis, 'Body1' for a single mesh) or a custom definition. Staff give its rate limit as starting at 10 requests per minute per experience and scaling with concurrent users. GenerateMeshAsync is deprecated (staff announced its removal after 2026-03-18); use GenerateModelAsync for new work.",
+  "tags": [
+   "generation",
+   "generationservice",
+   "runtime",
+   "ai"
+  ],
+  "confidence": 0.8,
+  "versionApplicability": "Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/GenerationService",
+    "title": "GenerationService",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/parts/model-generation",
+    "title": "Model generation",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "remote-argument-rules",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "What survives a RemoteEvent or RemoteFunction call",
+  "body": "Remote arguments may be Roblox datatypes, Instances, Enums and Luau primitives, but functions arrive as nil, metatables are stripped, tables must be pure arrays or pure dictionaries (mixed tables are unsupported), non-string keys are converted to strings, and Instances the receiver cannot see (server-only, or not streamed in) arrive as nil. Remotes must live where both sides can see them, typically ReplicatedStorage. If no listener is connected on the receiving side, the invocation is discarded and 'Remote event invocation discarded' is logged.",
+  "tags": [
+   "networking",
+   "remotes",
+   "replication"
+  ],
+  "confidence": 0.95,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/events/remote",
+    "title": "Remote events and callbacks",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/RemoteEvent",
+    "title": "RemoteEvent",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "remote-throttle-and-unreliable",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Remote throttling and UnreliableRemoteEvent semantics",
+  "body": "Client-to-server FireServer calls are throttled at roughly 500 requests per second per client, shared among all remote events of the same type, so a game's own per-player rate limits must be far lower. UnreliableRemoteEvent is asynchronous, unordered and unreliable (lost events are not resent) and suits ephemeral effects or continuously changing data; payloads larger than 1000 bytes are dropped, with a Studio Output message stating the overage. Use a RemoteEvent whenever ordering or delivery matters.",
+  "tags": [
+   "networking",
+   "remotes",
+   "unreliable",
+   "rate-limit"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/UnreliableRemoteEvent",
+    "title": "UnreliableRemoteEvent",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/RemoteEvent",
+    "title": "RemoteEvent throttling",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://devforum.roblox.com/t/introducing-unreliableremoteevents/2724155",
+    "title": "Introducing UnreliableRemoteEvents",
+    "authority": "staff"
+   }
+  ]
+ },
+ {
+  "key": "remote-validation-server-authority",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Server authority: validate every remote on the server",
+  "body": "Exploiters fully control their client: they can fire any remote with any arguments at any rate, read everything replicated to them (including ModuleScript source in ReplicatedStorage) and move their own character. The server must own game state and validate each request: argument types with typeof, NaN (x ~= x) and infinity, numeric ranges and string lengths, that referenced Instances have the expected class, tag and ancestry, ownership, server-measured distance, cooldowns and per-player rate limits. Never accept client-computed damage, prices, rewards or timestamps, and keep logic and secrets in ServerScriptService or ServerStorage.",
+  "tags": [
+   "security",
+   "networking",
+   "validation",
+   "anticheat"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/security/security-tactics",
+    "title": "Security tactics and cheat mitigation",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/events/remote",
+    "title": "Remote events and callbacks",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "remotefunction-invokeclient-risks",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Avoid RemoteFunction:InvokeClient",
+  "body": "Roblox's docs list serious risks for server-to-client invokes: if the client throws an error, the server throws too; if the client disconnects during the call, InvokeClient errors; and if the client never returns a value, the server thread yields forever. Exploiters can trigger all three deliberately. Use RemoteEvents for server-to-client messages and, when a reply is needed, a client-to-server RemoteEvent that the server validates and times out.",
+  "tags": [
+   "security",
+   "networking",
+   "remotefunction"
+  ],
+  "confidence": 0.95,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/events/remote",
+    "title": "Remote callbacks: InvokeClient risks",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/RemoteFunction",
+    "title": "RemoteFunction",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "datastore-limits-2026",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "DataStore request budgets and data limits (2026 model)",
+  "body": "Experience-level budgets, shared by all servers and Open Cloud, are per minute: read 300 + 40×CCU, write 300 + 20×CCU, list 300 + 2×CCU and remove 300 + 40×CCU (same for ordered stores), and UpdateAsync consumes both a read and a write. Each server also has creator-configurable defaults (SetRateLimitForRequestType): standard read, write and remove 60 + 40×players per minute, list 5 + 2×players, ordered write and remove 30 + 5×players, plus a one-time startup burst. Check GetRequestBudgetForRequestType with the modern Enum.DataStoreRequestType values (StandardRead, StandardWrite, StandardList, StandardRemove, OrderedRead, OrderedWrite, OrderedList, OrderedRemove); the legacy values should not be used. Throttled requests wait in queues of 30 and fail with errors 301–306 when a queue is full. Keys, store names and scopes are at most 50 characters, a value at most 4,194,304 characters, per-key throughput 25 MB/min read and 4 MB/min write, and total storage 500 MB + 1 MB × lifetime users.",
+  "tags": [
+   "datastore",
+   "limits",
+   "persistence",
+   "budget"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/cloud-services/data-stores/error-codes-and-limits",
+    "title": "Data store error codes and limits",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/enums/DataStoreRequestType",
+    "title": "DataStoreRequestType",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "datastore-session-locking",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "DataStores have no built-in session lock; use one to prevent item duplication",
+  "body": "Nothing stops two servers from loading the same player key at once (for example a fast rejoin or teleport before the old server saved), which lets players complete actions that never persist and is a common source of item-duplication exploits in trading games. Roblox's player-data guide implements a session lock by writing a lock GUID and an expiry into the key's metadata inside the same UpdateAsync call, letting other servers take over only after expiry. The community library ProfileStore (MadStudioRoblox, Apache-2.0) packages session locking, 300 s autosave, BindToClose handling and a mock store; it is not a Roblox API and is vendored as a single ModuleScript.",
+  "tags": [
+   "datastore",
+   "session-lock",
+   "profilestore",
+   "duplication",
+   "persistence"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/cloud-services/data-stores/player-data-purchasing",
+    "title": "Implement player data and purchasing systems",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://github.com/MadStudioRoblox/ProfileStore",
+    "title": "MadStudioRoblox/ProfileStore",
+    "authority": "community"
+   }
+  ]
+ },
+ {
+  "key": "datastore-studio-access",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "DataStores in Studio need API access and hit live data",
+  "body": "Studio can only use data stores when File → Experience Settings → Security → 'Enable Studio Access to API Services' is on, and the experience must be published. With it on, Studio reads and writes the same data stores as the live experience, so Roblox recommends enabling it only for a separate test version of the game, never the live one. Without it, DataStore calls fail in Studio; ProfileStore then silently falls back to a mock store, so playtest progress does not persist.",
+  "tags": [
+   "datastore",
+   "studio",
+   "testing",
+   "persistence"
+  ],
+  "confidence": 0.95,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/cloud-services/data-stores",
+    "title": "Data stores: enable Studio access",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "bindtoclose-30-seconds",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "game:BindToClose gives at most 30 seconds to save",
+  "body": "Functions bound with game:BindToClose run in parallel when a server shuts down, and the server waits at most 30 seconds for all of them before closing even if they are still running. Code that uses DataStoreService should bind a function that saves all unsaved data. The docs suggest checking RunService:IsStudio() so bound functions don't hold up offline Studio sessions; ProfileStore binds its own shutdown handler.",
+  "tags": [
+   "datastore",
+   "shutdown",
+   "persistence"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/DataModel",
+    "title": "DataModel:BindToClose",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "network-ownership-security",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Network ownership: clients simulate their characters and nearby parts",
+  "body": "The engine gives clients network ownership of their own character and of unanchored parts near it; the server always owns anchored parts, ownership can be set with BasePart:SetNetworkOwner(player or nil) and reverted with SetNetworkOwnershipAuto(). Roblox cannot verify physics from a client-owned part: an exploiter can teleport it, move it through walls and fire Touched events artificially, so server logic must sanity-check positions and must not trust Touched on client-owned parts. NPCs and physics projectiles should be server-owned (SetNetworkOwner(nil)), while assigning ownership to players should be done sparingly because it can make physics jittery.",
+  "tags": [
+   "physics",
+   "network-ownership",
+   "security",
+   "anticheat"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/physics/network-ownership",
+    "title": "Network ownership",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "streaming-enabled-facts",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "StreamingEnabled: clients only have part of the world",
+  "body": "Instance streaming is enabled by default for new places and cannot be set from scripts. The server always has every instance, but clients receive BaseParts and models near their replication focus (StreamingMinRadius default 64, StreamingTargetRadius default 1024) and can lose them again, so client code must tolerate missing instances (WaitForChild with timeouts, CollectionService added/removed signals). Model.ModelStreamingMode sets granularity: Nonatomic (default), Atomic (the whole model streams together), Persistent (sent at join, never streamed out) and PersistentPerPlayer (via Model:AddPersistentPlayer). Player:RequestStreamAroundAsync pre-streams an area, for example before a teleport, and StreamingIntegrityMode PauseOutsideLoadedArea is recommended.",
+  "tags": [
+   "streaming",
+   "replication",
+   "performance",
+   "client"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/workspace/streaming",
+    "title": "Instance streaming",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "async-renamed-apis-2026",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Many yielding APIs now have *Async replacements",
+  "body": "Roblox has deprecated several yielding methods in favour of Async-suffixed versions: Player:LoadCharacter → LoadCharacterAsync, Player:IsInGroup, GetRankInGroup, IsFriendsWith and GetFriendsOnline → their *Async variants, Players:CreateHumanoidModelFromDescription and CreateHumanoidModelFromUserId → CreateHumanoidModelFromDescriptionAsync and CreateHumanoidModelFromUserIdAsync, Humanoid:ApplyDescription → ApplyDescriptionAsync, MarketplaceService:GetProductInfo and PlayerOwnsAsset → GetProductInfoAsync and PlayerOwnsAssetAsync, and BadgeService:UserHasBadge → UserHasBadgeAsync. Use the Async names in new code; the old names still work but are marked deprecated. Model:SetPrimaryPartCFrame and GetPrimaryPartCFrame are likewise deprecated in favour of PivotTo and GetPivot.",
+  "tags": [
+   "api",
+   "deprecation",
+   "luau",
+   "async"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Roblox engine API reference checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/Player",
+    "title": "Player (deprecated methods)",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/Players",
+    "title": "Players",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/Humanoid",
+    "title": "Humanoid",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "tags-attributes-for-logic",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Drive world logic with CollectionService tags and attributes",
+  "body": "Tags (Instance:AddTag, HasTag, RemoveTag, GetTags; CollectionService:GetTagged, GetInstanceAddedSignal, GetInstanceRemovedSignal) let one system handle every tagged object instead of a script per object, and the signals fire as instances stream in and out on clients. Attributes (SetAttribute, GetAttribute, GetAttributes, GetAttributeChangedSignal) hold small per-instance values; like other properties, server changes replicate to clients and client changes do not replicate to the server. In Script Sync projects, never put tags or attributes on scripts, because Script Sync does not write them to disk.",
+  "tags": [
+   "collectionservice",
+   "tags",
+   "attributes",
+   "world",
+   "architecture"
+  ],
+  "confidence": 0.85,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/CollectionService",
+    "title": "CollectionService",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/Instance",
+    "title": "Instance tags and attributes",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/scripting/sync",
+    "title": "Script Sync: don't sync scripts with attributes or tags",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "spatial-query-semantics",
+  "scope": "roblox",
+  "category": "authoritative",
+  "title": "Spatial queries: bounding boxes vs exact geometry vs shapecasts",
+  "body": "WorldRoot:GetPartBoundsInBox and GetPartBoundsInRadius test parts' bounding boxes, which is cheap but over-reports for cylinders, spheres, unions and MeshParts (and reports touching neighbours), while GetPartsInPart performs a full geometric check of a part's exact volume. Blockcast, Spherecast and Shapecast sweep a shape along a direction, do not detect parts the shape initially intersects, and travel at most 1024 studs; Raycast has neither restriction. Filter with RaycastParams/OverlapParams using Enum.RaycastFilterType.Include or Exclude and FilterDescendantsInstances.",
+  "tags": [
+   "physics",
+   "raycast",
+   "spatial-query",
+   "combat",
+   "world"
+  ],
+  "confidence": 0.9,
+  "versionApplicability": "Roblox engine, docs checked 2026-09-28",
+  "sources": [
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/reference/engine/classes/WorldRoot",
+    "title": "WorldRoot",
+    "authority": "official"
+   },
+   {
+    "kind": "url",
+    "ref": "https://create.roblox.com/docs/workspace/raycasting",
+    "title": "Raycasting",
+    "authority": "official"
+   }
+  ]
+ },
+ {
+  "key": "r15-rigs-animationconstraint-joints",
+  "scope": "roblox",
+  "category": "research",
+  "title": "R15 characters use AnimationConstraint joints, not Motor6Ds",
+  "body": "Measured in Studio (Sept 2026): player characters and rigs from Players:CreateHumanoidModelFromDescription join their parts with 15 AnimationConstraints (IsKinematic true, MaxTorque 3000, e.g. RightUpperArm.RightShoulder) and already carry 14 limited BallSocketConstraints. Animations drive them like Motor6Ds (AnimationConstraint.Transform). Code that looks for Motor6Ds (ragdolls, joint edits) finds none and silently does nothing: to ragdoll, disable the AnimationConstraints except the root (the built-in ball sockets hold the limbs) and set the Humanoid to Physics on the character's owner. Shuriken's skill roblox-ragdoll-knockback has a tested module that handles both joint kinds.",
+  "tags": [
+   "r15",
+   "rig",
+   "animationconstraint",
+   "motor6d",
+   "ragdoll",
+   "knockback",
+   "joints",
+   "character"
+  ],
+  "confidence": 0.95,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "test",
+    "ref": "Shuriken Studio playtest probe, 2026-09-29",
+    "title": "Rig joint classes and ragdoll test in a scratch place",
+    "authority": "observed"
+   }
+  ]
+ },
+ {
+  "key": "pose-interpolation-nlerp-slerp",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Keyframe poses blend by nlerp when Linear and slerp when eased",
+  "body": "Measured in Studio (Sept 2026) by reading Motor6D/AnimationConstraint.Transform during playback: between two keyframes a pose with EasingStyle Linear blends the rotations as a normalized linear quaternion blend (0 to 150 degrees reads 33.0 degrees at a quarter of the time, not 37.5), while eased styles (CubicV2, Elastic, Bounce) turn at a constant rate on the eased progress (slerp). Both take the shorter arc, so consecutive keys must stay under 180 degrees apart (a full spin needs at least three keys). Legacy Cubic runs In/Out backwards; use CubicV2.",
+  "tags": [
+   "animation",
+   "keyframe",
+   "pose",
+   "easing",
+   "interpolation",
+   "slerp",
+   "nlerp",
+   "cubicv2"
+  ],
+  "confidence": 0.95,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "test",
+    "ref": "Shuriken Studio rig probes, 2026-09-29",
+    "title": "Pose blending measured on a default R15 rig",
+    "authority": "observed"
+   }
+  ]
+ },
+ {
+  "key": "knockback-launch-limbs-or-linearvelocity",
+  "scope": "roblox",
+  "category": "research",
+  "title": "Knockback: launch every limb of a ragdoll; push standing characters with a LinearVelocity",
+  "body": "Measured in Studio (Sept 2026), R15 NPCs and a player alike, 45 studs/s forward + 25 up: while ragdolled (AnimationConstraints off) every limb is its own assembly (only HumanoidRootPart + LowerTorso stay one), so AssemblyLinearVelocity on the root alone moved the body 3.8-4.4 studs; the same velocity on every BasePart threw it 28-29 studs (re-applying a frame later changed nothing). A standing Humanoid cancels a velocity set once (1.1 studs); a LinearVelocity on the root (MaxForce huge, world space) for 0.2 s pushed it 14-17 studs and it stayed upright in Running (0.25 s: 19 studs). Switching to Physics during the push threw it 40 studs but it fell over and stayed in Physics. Player characters: the owning client must apply all of this. Shuriken's skill roblox-ragdoll-knockback (v2) implements it.",
+  "tags": [
+   "knockback",
+   "ragdoll",
+   "launch",
+   "linearvelocity",
+   "assembly",
+   "humanoid",
+   "physics",
+   "combat"
+  ],
+  "confidence": 0.95,
+  "versionApplicability": "Studio 0.740 / Sept 2026",
+  "sources": [
+   {
+    "kind": "test",
+    "ref": "Shuriken Studio playtest probe, 2026-09-29",
+    "title": "Knockback distance by launch method in a scratch place",
+    "authority": "observed"
+   }
+  ]
+ }
+]

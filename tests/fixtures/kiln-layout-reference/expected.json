@@ -1,0 +1,324 @@
+{
+ "about": "World positions (scene units, Blender axes: Z up, models face -Y) of each placed piece's reference points: world = matrix @ point.",
+ "units": "studs",
+ "piece_points": {
+  "origin": [
+   0,
+   0,
+   0
+  ],
+  "x1": [
+   1,
+   0,
+   0
+  ],
+  "y1": [
+   0,
+   1,
+   0
+  ],
+  "z1": [
+   0,
+   0,
+   1
+  ]
+ },
+ "placements": {
+  "Arrow_Plain_001": {
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "origin": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "x1": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "y1": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "z1": [
+    0.0,
+    0.0,
+    1.0
+   ]
+  },
+  "Arrow_Scaled2_001": {
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "origin": [
+    0.0,
+    10.0,
+    2.0
+   ],
+   "x1": [
+    -2.0,
+    10.0,
+    2.0
+   ],
+   "y1": [
+    0.0,
+    8.0,
+    2.0
+   ],
+   "z1": [
+    0.0,
+    10.0,
+    4.0
+   ]
+  },
+  "Arrow_Turn90_001": {
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "origin": [
+    10.0,
+    0.0,
+    0.0
+   ],
+   "x1": [
+    10.0,
+    1.0,
+    0.0
+   ],
+   "y1": [
+    9.0,
+    0.0,
+    0.0
+   ],
+   "z1": [
+    10.0,
+    0.0,
+    1.0
+   ]
+  },
+  "Arrow_TurnMinus45_001": {
+   "piece": "Arrow",
+   "project": "fixture-arrow",
+   "origin": [
+    -10.0,
+    5.0,
+    0.0
+   ],
+   "x1": [
+    -9.2929,
+    4.2929,
+    0.0
+   ],
+   "y1": [
+    -9.2929,
+    5.7071,
+    0.0
+   ],
+   "z1": [
+    -10.0,
+    5.0,
+    1.0
+   ]
+  },
+  "Pillar_OnItsBack_001": {
+   "piece": "Pillar",
+   "project": "fixture-pillar",
+   "origin": [
+    15.0,
+    -10.0,
+    0.0
+   ],
+   "x1": [
+    16.0,
+    -10.0,
+    0.0
+   ],
+   "y1": [
+    15.0,
+    -10.0,
+    1.0
+   ],
+   "z1": [
+    15.0,
+    -11.0,
+    0.0
+   ]
+  },
+  "Pillar_Plain_001": {
+   "piece": "Pillar",
+   "project": "fixture-pillar",
+   "origin": [
+    5.0,
+    -10.0,
+    0.0
+   ],
+   "x1": [
+    6.0,
+    -10.0,
+    0.0
+   ],
+   "y1": [
+    5.0,
+    -9.0,
+    0.0
+   ],
+   "z1": [
+    5.0,
+    -10.0,
+    1.0
+   ]
+  },
+  "Pillar_Tall_001": {
+   "piece": "Pillar",
+   "project": "fixture-pillar",
+   "origin": [
+    -5.0,
+    -10.0,
+    0.0
+   ],
+   "x1": [
+    -4.134,
+    -9.5,
+    0.0
+   ],
+   "y1": [
+    -5.5,
+    -9.134,
+    0.0
+   ],
+   "z1": [
+    -5.0,
+    -10.0,
+    2.5
+   ]
+  },
+  "Slab_Plain_001": {
+   "piece": "Slab",
+   "project": "fixture-slab",
+   "origin": [
+    -20.0,
+    -15.0,
+    0.0
+   ],
+   "x1": [
+    -19.0,
+    -15.0,
+    0.0
+   ],
+   "y1": [
+    -20.0,
+    -14.0,
+    0.0
+   ],
+   "z1": [
+    -20.0,
+    -15.0,
+    1.0
+   ]
+  },
+  "Slab_Stretched_001": {
+   "piece": "Slab",
+   "project": "fixture-slab",
+   "origin": [
+    -20.0,
+    0.0,
+    0.0
+   ],
+   "x1": [
+    -20.0,
+    -0.5,
+    0.0
+   ],
+   "y1": [
+    -18.0,
+    0.0,
+    0.0
+   ],
+   "z1": [
+    -20.0,
+    0.0,
+    1.0
+   ]
+  },
+  "Slab_Tilted_001": {
+   "piece": "Slab",
+   "project": "fixture-slab",
+   "origin": [
+    12.0,
+    12.0,
+    1.0
+   ],
+   "x1": [
+    13.2207,
+    12.7048,
+    0.487
+   ],
+   "y1": [
+    11.3385,
+    13.3238,
+    1.2448
+   ],
+   "z1": [
+    12.5678,
+    12.027,
+    2.3881
+   ]
+  }
+ },
+ "markers": {
+  "Spawn_A": {
+   "role": "spawn",
+   "position": [
+    -25.0,
+    -18.0,
+    0.5
+   ],
+   "facing": [
+    -1.0,
+    0.0,
+    0.0
+   ]
+  }
+ },
+ "paths": {
+  "Center_Line": {
+   "role": "road_centerline",
+   "width": 8.0,
+   "closed": false,
+   "first": [
+    -25.0,
+    -18.0,
+    0.0
+   ],
+   "last": [
+    25.0,
+    10.0,
+    0.0
+   ],
+   "points": 4
+  }
+ },
+ "shared_meshes": {
+  "Wall_North": [
+   "Wall_North",
+   "Wall_South"
+  ]
+ },
+ "roles": {
+  "Ground": "drivable",
+  "Shed": "decor",
+  "Wall_North": "barrier",
+  "Wall_South": "barrier"
+ },
+ "colliders": [
+  {
+   "name": "Shed_Collider",
+   "stands_for": "Shed"
+  }
+ ],
+ "pieces": {
+  "Arrow": "fixture-arrow",
+  "Pillar": "fixture-pillar",
+  "Slab": "fixture-slab"
+ }
+}

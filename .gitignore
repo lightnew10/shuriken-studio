@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output (npm run build, npm run dist)
+out/
+dist/
+build-out/
+coverage/
+Versions/
+
+# Logs, caches, local data
+*.log
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+.cache/
+.shuriken/
+.shuriken-dev/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+
+# Editors, OS and agent tools
+.claude/
+.vscode/
+.idea/
+CLAUDE.local.md
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Kiln's installer, copied in for a bundle build (npm run dist:bundle)
+build/bundle/kiln/*.exe
