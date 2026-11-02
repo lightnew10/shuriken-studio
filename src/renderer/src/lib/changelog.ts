@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.16.2',
+    date: 'November 1, 2026',
+    headline: 'A fresh install says it needs a sign-in, and Kiln 0.8.8',
+    changes: [
+      'A PC with no Claude login no longer reads as signed in: Settings → Accounts shows “Not signed in” and “Sign in” instead of “Sign in again”.',
+      'Comes with Kiln 0.8.8: adding a Claude account opens a sign-in window that stays open, a try you don’t finish leaves nothing in the list, and Blender is picked up as soon as it is installed, with no restart.',
+    ],
+  },
+  {
     version: '1.16.1',
     date: 'October 30, 2026',
     headline: 'Far more agents: 8 at once by default (up to 32), 4 of them in Studio (up to 16)',

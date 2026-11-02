@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { newId, nowIso } from '@shared/ids';
 import { clockText } from '@shared/usage';
@@ -6,6 +6,7 @@ import type { Store } from '../db/store';
 import { j, pj } from '../db/store';
 import type { EventBus } from '../events';
 import type { UsageTracker } from '../orchestrator/usage-tracker';
+import { claudeConfigDir } from '../providers/claude/session-carry';
 
 /**
  * One signed-in subscription of an AI provider (e.g. two Claude Max plans). Each account has its own
@@ -72,7 +73,9 @@ export class AccountService {
   /** The PC's own Claude login as an account (dir '' = no override: the provider's default credentials). */
   pc(providerId: string): ProviderAccount {
     const meta = pj<Partial<ProviderAccount>>(this.read(PC_META), {});
-    return { id: PC_ACCOUNT_ID, providerId, label: PC_LABEL, dir: '', email: meta.email ?? null, plan: meta.plan ?? null, signedIn: meta.signedIn ?? true, checkedAt: meta.checkedAt ?? null, createdAt: '' };
+    // Until the first check (a few seconds after starting): is there a login at all?
+    const signedIn = meta.signedIn ?? existsSync(join(claudeConfigDir(''), '.credentials.json'));
+    return { id: PC_ACCOUNT_ID, providerId, label: PC_LABEL, dir: '', email: meta.email ?? null, plan: meta.plan ?? null, signedIn, checkedAt: meta.checkedAt ?? null, createdAt: '' };
   }
 
   /**

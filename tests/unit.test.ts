@@ -542,6 +542,14 @@ describe('provider accounts', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'shuriken-accts-'));
     return { accounts: new AccountService(global, dir, bus), usage: new UsageTracker(global, bus) };
   };
+  it('does not read "no login" as signed in', async () => {
+    const { hasClaudeLogin } = await import('../src/core/providers/claude/claude-provider');
+    // What Claude Code 2.1 reports for a config folder with no login.
+    expect(hasClaudeLogin({ tokenSource: 'none', apiProvider: 'firstParty' })).toBe(false);
+    expect(hasClaudeLogin({ email: 'a@example.com', tokenSource: 'claude.ai', apiProvider: 'firstParty' })).toBe(true);
+    expect(hasClaudeLogin({ apiKeySource: 'ANTHROPIC_API_KEY', apiProvider: 'firstParty' })).toBe(true);
+    expect(hasClaudeLogin({ tokenSource: 'none', apiProvider: 'bedrock' })).toBe(true);
+  });
   it('uses the default login until an account is signed in', () => {
     const { accounts, usage } = setup();
     expect(accounts.pick('claude', usage)).toMatchObject({ ok: true, account: null, usageKey: 'claude' });

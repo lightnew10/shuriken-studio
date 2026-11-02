@@ -1,7 +1,7 @@
 {
   "name": "shuriken-studio",
   "productName": "Shuriken Studio",
-  "version": "1.16.1",
+  "version": "1.16.2",
   "description": "Shuriken Studio: a free, open-source AI game studio for Roblox. A team of AI agents builds games in Roblox Studio from a prompt.",
   "private": true,
   "type": "module",

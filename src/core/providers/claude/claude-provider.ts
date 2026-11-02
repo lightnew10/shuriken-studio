@@ -143,7 +143,7 @@ export class ClaudeProvider implements IAgentProvider {
     try {
       const init = await withTimeout(q.initializationResult(), 45000, 'Claude initialization');
       const acct = init.account ?? {};
-      const authenticated = !!(acct.email || acct.apiKeySource || acct.tokenSource || acct.apiProvider);
+      const authenticated = hasClaudeLogin(acct);
       return {
         authenticated,
         method: acct.apiKeySource && acct.apiKeySource !== 'none' ? `api key (${acct.apiKeySource})` : acct.tokenSource ?? acct.apiProvider ?? null,
@@ -331,6 +331,15 @@ export class ClaudeProvider implements IAgentProvider {
  * was tested with: it is told not to update itself, and a copy it moved away is put back.
  */
 export const NO_SELF_UPDATE: Record<string, string> = { DISABLE_AUTOUPDATER: '1' };
+
+/**
+ * Whether what Claude Code reports at startup is a login. With none it still answers, with
+ * { tokenSource: 'none', apiProvider: 'firstParty' }, so a fresh install read as signed in.
+ */
+export function hasClaudeLogin(acct: { email?: string; apiKeySource?: string; tokenSource?: string; apiProvider?: string }): boolean {
+  const real = (v?: string) => !!v && v !== 'none';
+  return !!acct.email || real(acct.apiKeySource) || real(acct.tokenSource) || (!!acct.apiProvider && acct.apiProvider !== 'firstParty');
+}
 
 /** Puts back a bundled program that renamed itself away (see NO_SELF_UPDATE). True when `exe` is there afterwards. */
 export function restoreMovedBinary(exe: string): boolean {
