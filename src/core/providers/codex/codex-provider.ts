@@ -173,7 +173,7 @@ export class CodexProvider implements IAgentProvider {
       try {
         if (req.signal.aborted) { interrupted = true; throw new Error('Run interrupted'); }
         temporary = mkdtempSync(join(tmpdir(), 'shuriken-codex-'));
-        const args = ['exec', '--json', '--skip-git-repo-check', '--sandbox', 'workspace-write'];
+        const args = ['exec', '--json', '--skip-git-repo-check', '--sandbox', req.providerSandbox ?? 'read-only'];
         // Shuriken MCP is a per-run, short-lived server token. Its bearer is in
         // the child environment, never in shell arguments, logs or persisted files.
         const extraEnv: Record<string, string> = { ...(req.env ?? {}) };
