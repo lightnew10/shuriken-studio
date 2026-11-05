@@ -216,9 +216,9 @@ export function CollaborationSettings() {
           </div>
         </Section>
       )}
-      <Section title="Distributed AI and shared project" description="Planned next: shared Director history, host-approved file patches, guest workers, owner-controlled Claude/Codex execution and guarded quota routing. None of these permissions is granted by joining a C1 session.">
+      <Section title="Host-controlled Roblox changes (planned)" description="The host's project and Roblox Studio remain the only writable game environment. Guests will propose Luau, UI and VFX changes for the host to validate and apply. 3D models and textures will require an explicit host preview and Accept / Reject step before import. These workflows are not yet enabled.">
         <div className="card px-4 py-4 text-[12px] leading-relaxed text-dim">
-          Invitations permit guests to read shared human chat and read-only Director/task updates; do not include secrets in that conversation. Each ChatGPT or Claude sign-in stays on its owner's PC. The host never receives account tokens. Automatic delegation of personal subscriptions to other users is not enabled; provider account terms and explicit consent must be addressed first.
+          Current access is read-only for the host's game. No guest can write files or control the host's Studio through this session. Future agents will submit versioned proposals and asset manifests, and only the host will import or apply them after the required checks. Each ChatGPT or Claude sign-in stays on its owner's PC, and cross-user subscription delegation remains disabled pending provider policy review.
           <p className="mt-3 text-faint">Deployment instructions: collaboration/relay/README.md · Plan: docs/COLLABORATION_PLAN.md</p>
         </div>
       </Section>
