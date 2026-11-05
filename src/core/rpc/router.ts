@@ -48,6 +48,8 @@ import { referenceRpc } from '../references/reference-rpc';
 import { forgeRpc } from '../ui/forge/forge-rpc';
 import { forgeGpuRpc } from '../ui/forge/forge-gpu-rpc';
 import { buildCost, costOf } from '../costs/build-cost';
+import { loadCodexModels, isAllowedCodexModel } from '../providers/codex/codex-models';
+import type { CodexTierModels } from '../providers/provider-registry';
 
 /** The dock copilot a chat channel belongs to ("copilot:animation" → animation); null for the director's. */
 const copilotOf = (channel: unknown): CopilotId | null => {
@@ -494,6 +496,27 @@ export function createRouter(core: Core): Record<string, Handler> {
       core.providers.setAssignments({ default: selected, roles: filtered });
       core.orchestrator.kick();
       return core.providers.assignments();
+    },
+    'providers.codex.models': async () => {
+      const provider = core.providers.get('codex');
+      if (!provider || !(await provider.auth()).authenticated)
+        throw new Error('Sign in with your ChatGPT subscription to list Codex models.');
+      const models = await loadCodexModels();
+      return { models, selected: core.providers.codexModels() };
+    },
+    'providers.codex.setModels': async ({ models }: { models: CodexTierModels }) => {
+      if (!models || !['fast', 'balanced', 'deep'].every((tier) =>
+        typeof models[tier as keyof CodexTierModels] === 'string'))
+        throw new Error('Select a Codex model for Fast, Balanced and Deep.');
+      // Do not accept unknown models, including manually crafted IPC requests.
+      const catalog = await loadCodexModels();
+      const allowed = new Set(catalog.map((model) => model.id));
+      for (const tier of ['fast', 'balanced', 'deep'] as const) {
+        const chosen = models[tier];
+        if (chosen !== 'default' && (!isAllowedCodexModel(chosen) || !allowed.has(chosen)))
+          throw new Error('Unsupported or excluded Codex model for ' + tier + ': ' + chosen);
+      }
+      return core.providers.setCodexModels(models);
     },
     'providers.codex.status': async () => {
       const provider = core.providers.get('codex');
