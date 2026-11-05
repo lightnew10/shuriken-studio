@@ -12,9 +12,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "install-electron && electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "preview": "install-electron && electron-vite preview",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
