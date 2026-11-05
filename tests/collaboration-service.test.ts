@@ -52,6 +52,8 @@ describe('CollaborationService (no AI account sharing)', () => {
     let name: string | null = initialName;
     const bus = new EventBus();
     const changed = vi.fn();
+    const onGuestRequest = vi.fn();
+    let allowed = false;
     bus.on('collaboration.changed', changed);
     return {
       manager: new CollaborationService({
@@ -63,8 +65,13 @@ describe('CollaborationService (no AI account sharing)', () => {
         localProject: () => ({ name: 'Impulse Simulator', projectId: 'game01', taskCount: 12 }),
         localTasks: () => [{ id: 'task-01', title: 'Build combat', role: 'roblox-engineer', status: 'running', updatedAt: new Date().toISOString() }],
         localDirector: () => [{ id: 'msg-01', role: 'director', kind: 'text', text: 'Building the combat system', createdAt: new Date().toISOString() }],
+        localRuns: () => [{ id: 'run-01', taskId: 'task-01', role: 'roblox-engineer', status: 'running', startedAt: new Date().toISOString(), endedAt: null }],
+        getAllowGuestRequests: () => allowed,
+        saveAllowGuestRequests: (enabled) => { allowed = enabled; },
+        onGuestRequest,
       }),
       changed,
+      onGuestRequest,
     };
   }
   it('hosts with separate host and guest keys and no credentials in the WebSocket URL', async () => {
@@ -117,6 +124,60 @@ describe('CollaborationService (no AI account sharing)', () => {
     expect(hello.secret).toBe('b'.repeat(64));
     expect(hello.joinSecret).toBeUndefined();
     expect(sockets[0]!.sent.find((p) => p.type === 'payload' && (p.data as { kind?: string }).kind === 'sync-request')).toBeDefined();
+    manager.leave();
+  });
+
+  it('adopts a guest request exactly once and sends the host admission receipt', async () => {
+    vi.stubGlobal('WebSocket', FakeSocket);
+    const { manager, onGuestRequest } = service();
+    await manager.host();
+    manager.setGuestRequests(true);
+    const peer = { id: 'guest-001', name: 'Friend', role: 'guest' };
+    const request = { kind: 'director-request', id: 'f5fd782b-2db2-4519-b2c6-4b920974aa00', text: 'Create a Luau inventory UI' };
+    sockets[0]!.receive({ v: 1, type: 'payload', from: peer, data: request });
+    sockets[0]!.receive({ v: 1, type: 'payload', from: peer, data: request });
+    expect(onGuestRequest).toHaveBeenCalledTimes(1);
+    expect(onGuestRequest).toHaveBeenCalledWith(peer, request.id, request.text);
+    expect(sockets[0]!.sent.filter((f) => f.type === 'payload' && (f.data as any).kind === 'director-receipt')).toHaveLength(2);
+    manager.leave();
+  });
+
+  it('denies host instructions by default without writing to the Director', async () => {
+    vi.stubGlobal('WebSocket', FakeSocket);
+    const { manager, onGuestRequest } = service();
+    await manager.host();
+    sockets[0]!.receive({
+      v: 1, type: 'payload', from: { id: 'guest-001', name: 'Friend', role: 'guest' },
+      data: { kind: 'director-request', id: '24bd86af-3d1c-45a2-89f9-1032248b18fa', text: 'Make a tool' },
+    });
+    expect(onGuestRequest).not.toHaveBeenCalled();
+    const receipt = sockets[0]!.sent.find((f) => f.type === 'payload' && (f.data as any).kind === 'director-receipt');
+    expect((receipt?.data as any).receipt.status).toBe('rejected');
+    manager.leave();
+  });
+
+  it('lets authorized guests submit a request and receive the host receipt', async () => {
+    vi.stubGlobal('WebSocket', FakeSocket);
+    const { manager } = service('Guest');
+    await manager.join(collabInvitation('https://host.workers.dev', 'a'.repeat(32), 'b'.repeat(64)));
+    sockets[0]!.receive({ v: 1, type: 'presence', peers: [
+      { id: 'member_123', name: 'Guest', role: 'guest' },
+      { id: 'host_1', name: 'Owner', role: 'host' },
+    ] });
+    sockets[0]!.receive({ v: 1, type: 'payload',
+      from: { id: 'host_1', name: 'Owner', role: 'host' },
+      data: { kind: 'project-status', name: 'Test game', projectId: 'p1', taskCount: 0, guestRequestsEnabled: true },
+    });
+    expect(manager.status().guestRequestsEnabled).toBe(true);
+    const request = manager.requestDirector('Build an arena');
+    expect(request.status).toBe('pending');
+    expect(sockets[0]!.sent.some((f) => (f.data as any)?.kind === 'director-request' && (f.data as any)?.id === request.id)).toBe(true);
+    sockets[0]!.receive({ v: 1, type: 'payload',
+      from: { id: 'host_1', name: 'Owner', role: 'host' },
+      data: { kind: 'director-receipt', receipt: { id: request.id, status: 'accepted' } },
+    });
+    expect(manager.status().requests[0]?.status).toBe('accepted');
+    expect(() => manager.setGuestRequests(true)).toThrow('Only the host');
     manager.leave();
   });
 
