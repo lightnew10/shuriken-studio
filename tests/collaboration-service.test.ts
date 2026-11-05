@@ -74,6 +74,13 @@ describe('CollaborationService (no AI account sharing)', () => {
     expect(state.connection).toBe('connected');
     expect(state.role).toBe('host');
     expect(state.invitation).toContain('#join=');
+    expect(manager.headerStatus()).toMatchObject({
+      role: 'host', connection: 'connected', hostOnline: true,
+      peers: [{ id: 'member_123', name: 'Host', role: 'host' }],
+      selfId: 'member_123',
+    });
+    expect(JSON.stringify(manager.headerStatus())).not.toContain('join=');
+    expect(JSON.stringify(manager.headerStatus())).not.toContain('chat');
     const socket = sockets[0]!;
     expect(socket.url).toMatch(/^wss:\/\/relay\.example\.workers\.dev\/room\/[a-f0-9]{32}$/);
     const hello = socket.sent.find((p) => p.type === 'hello')!;
@@ -91,6 +98,9 @@ describe('CollaborationService (no AI account sharing)', () => {
     expect(left.connection).toBe('offline');
     expect(left.invitation).toBeNull();
     expect(left.messages).toHaveLength(0);
+    expect(manager.headerStatus()).toEqual({
+      role: null, connection: 'offline', peers: [], selfId: null, hostOnline: false,
+    });
     expect(socket.sent.some((p) => p.type === 'leave')).toBe(true);
   });
 
