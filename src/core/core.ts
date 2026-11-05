@@ -247,8 +247,30 @@ export class Core {
         projectId: this.project?.summary.id ?? null,
         taskCount: this.project?.tasks.list({}).length ?? 0,
       }),
+      localTasks: () => (this.project?.tasks.list({}) ?? []).map((task) => ({
+        id: task.id, title: task.title.slice(0, 250), role: task.role,
+        status: task.status, updatedAt: task.updatedAt,
+      })),
+      localDirector: () => this.project ? (this.director.chat()?.list(60) ?? [])
+        .filter((msg) => msg.channel === 'director' && (msg.role === 'user' || msg.role === 'director' || msg.role === 'system'))
+        .map((msg) => ({ id: msg.id, role: msg.role as 'user' | 'director' | 'system',
+          kind: msg.kind, text: msg.text.slice(0, 3_000), createdAt: msg.createdAt })) : [],
     });
-    this.bus.on('project.changed', () => this.collaboration.shareProject());
+    this.bus.on('project.changed', () => {
+      this.collaboration.shareProject();
+      this.collaboration.shareSnapshot();
+    });
+    this.bus.on('task.updated', (task) => this.collaboration.shareTask({
+      id: task.id, title: task.title.slice(0, 250), role: task.role,
+      status: task.status, updatedAt: task.updatedAt,
+    }));
+    this.bus.on('task.deleted', ({ id }) => this.collaboration.removeTask(id));
+    this.bus.on('chat.message', (msg) => {
+      if (msg.projectId !== this.project?.summary.id || msg.channel !== 'director') return;
+      if (msg.role !== 'user' && msg.role !== 'director' && msg.role !== 'system') return;
+      this.collaboration.shareDirector({ id: msg.id, role: msg.role, kind: msg.kind,
+        text: msg.text.slice(0, 3_000), createdAt: msg.createdAt });
+    });
     const providers = opts.providers ?? [
       new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
       new CodexProvider((tier) => this.providers.codexModels()[tier]),
