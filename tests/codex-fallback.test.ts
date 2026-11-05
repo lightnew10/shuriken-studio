@@ -57,7 +57,7 @@ describe('Claude -> Codex quota fallback', () => {
     expect(t.registry.forRole('critic').id).toBe('codex');
   });
 
-  it('persists the user's opt-in across registry instances', () => {
+  it("persists the user\'s opt-in across registry instances", () => {
     const t = setup();
     t.registry.setCodexFallbackEnabled(true);
     const reopened = new ProviderRegistry(t.db);
