@@ -216,9 +216,9 @@ export function CollaborationSettings() {
           </div>
         </Section>
       )}
-      <Section title="Host-controlled Roblox changes (planned)" description="The host's project and Roblox Studio remain the only writable game environment. Guests will propose Luau, UI and VFX changes for the host to validate and apply. 3D models and textures will require an explicit host preview and Accept / Reject step before import. These workflows are not yet enabled.">
+      <Section title="Host-executed collaborative requests (planned)" description="Guests will send ordinary requests to the host's Director. The host Shuriken will execute permitted Luau, UI, VFX, world and 3D changes directly on the host PC, without asking for approval on every modification. Sensitive or destructive operations will still require the host's permission. Live execution and result synchronization are not yet enabled.">
         <div className="card px-4 py-4 text-[12px] leading-relaxed text-dim">
-          Current access is read-only for the host's game. No guest can write files or control the host's Studio through this session. Future agents will submit versioned proposals and asset manifests, and only the host will import or apply them after the required checks. Each ChatGPT or Claude sign-in stays on its owner's PC, and cross-user subscription delegation remains disabled pending provider policy review.
+          Current guest access remains read-only. The next milestone will forward guest instructions to the host Director, with the host PC as the only writer for Roblox Studio and project files; guests will receive live progress, task status and results. Routine authorized edits will be automatic; privileged and destructive actions will be permission-gated. Models generated on the host will not require file transfer. Each ChatGPT or Claude sign-in stays on its owner's PC, and cross-user subscription delegation remains disabled pending provider policy review.
           <p className="mt-3 text-faint">Deployment instructions: collaboration/relay/README.md · Plan: docs/COLLABORATION_PLAN.md</p>
         </div>
       </Section>
