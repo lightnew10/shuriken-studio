@@ -88,6 +88,8 @@ export interface AgentRunRequest {
   cwd: string;
   additionalDirectories?: string[];
   modelTier: ModelTier;
+  /** Codex CLI cannot surface Shuriken's built-in shell/edit approval callback in exec mode. */
+  providerSandbox?: 'read-only' | 'workspace-write';
   /** Explicit provider model id; overrides the tier mapping. */
   model?: string | null;
   effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
