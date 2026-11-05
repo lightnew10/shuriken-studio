@@ -81,7 +81,9 @@ export class CollabRoom extends DurableObject<Env> {
       const encoded = await hash(msg.secret);
       let auth = await this.ctx.storage.get<Auth>('auth');
       if (msg.role === 'host') {
-        if (encoded.slice(0, 32) !== this.room || (auth && auth.hostHash !== encoded))
+        // Durable Objects may hibernate between messages; instance fields are not durable.
+        // Reconstruct the room name from the Durable Object ID on every host handshake.
+        if (encoded.slice(0, 32) !== (this.ctx.id.name ?? this.room) || (auth && auth.hostHash !== encoded))
           return void ws.close(1008, 'Host token rejected');
         if (!auth) {
           if (!validRoomSecret(msg.joinSecret ?? '')) return void ws.close(1008, 'Missing guest invitation key');
