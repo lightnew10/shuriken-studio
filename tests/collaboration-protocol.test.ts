@@ -51,6 +51,23 @@ describe('Shuriken collaboration protocol', () => {
     expect(parseCollabPayload({ kind: 'director-batch', messages: [{ ...director, text: 'x'.repeat(3001) }] }, true)).toBeNull();
   });
 
+  it('validates guest-to-host Director requests and host-only receipts', () => {
+    const request = { kind: 'director-request', id: '1a16e784-85bb-481a-811e-8503e0da9c0a', text: 'Build a clean UI' };
+    expect(parseCollabPayload(request, false)).toEqual(request);
+    expect(parseCollabPayload(request, true)).toBeNull();
+    expect(parseCollabPayload({ ...request, id: 'malformed' }, false)).toBeNull();
+    expect(parseCollabPayload({ ...request, text: 'x'.repeat(3000) }, false)).toBeNull();
+    const receipt = { kind: 'director-receipt', receipt: { id: request.id, status: 'accepted' } };
+    expect(parseCollabPayload(receipt, true)).toEqual(receipt);
+    expect(parseCollabPayload(receipt, false)).toBeNull();
+    expect(parseCollabPayload({ kind: 'director-typing', typing: true }, false)).toBeNull();
+    expect(parseCollabPayload({ kind: 'director-typing', typing: true }, true)).toEqual({ kind: 'director-typing', typing: true });
+    expect(parseCollabPayload({ kind: 'run-activity', activity: {
+      runId: 'run_1', taskId: 'task_1', kind: 'tool-use', at: new Date().toISOString(),
+    } }, false)).toBeNull();
+    expect(parseCollabPayload({ kind: 'provider-secrets', token: 'bad' }, true)).toBeNull();
+  });
+
   it('bounds the local history, name and chat payload while fixing ten minutes recovery', () => {
     expect(COLLAB_RECONNECT_MS).toBe(600_000);
     expect(truncateCollabHistory(Array.from({ length: 500 }, (_, i) => ({
