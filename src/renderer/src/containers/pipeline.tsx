@@ -49,7 +49,8 @@ export function PipelinePanel({ dense = false }: { dense?: boolean }) {
     const all = (tasks.data ?? []).filter((t) => t.kind !== 'objective' && t.status !== 'proposed' && t.status !== 'cancelled');
     return {
       working: all.filter((t) => ACTIVE.has(t.status)),
-      next: all.filter((t) => t.status === 'ready' || t.status === 'paused'),
+      // Paused tasks stay visible even when the queue contains dozens of ready tasks.
+      next: all.filter((t) => t.status === 'ready' || t.status === 'paused').sort((a, b) => Number(b.status === 'paused') - Number(a.status === 'paused')),
       done: all.filter((t) => t.status === 'done' || t.status === 'verified'),
       failed: all.filter((t) => t.status === 'failed' || t.status === 'escalated' || t.status === 'blocked'),
     };
@@ -148,7 +149,7 @@ export function PipelinePanel({ dense = false }: { dense?: boolean }) {
           <span>Up next</span>
           <span className="tabular normal-case tracking-normal">{next.length}</span>
         </div>
-        {next.slice(0, dense ? 3 : 6).map((t) => (
+        {next.filter((t) => t.status === 'paused').concat(next.filter((t) => t.status !== 'paused').slice(0, Math.max(0, (dense ? 3 : 6) - next.filter((t) => t.status === 'paused').length))).map((t) => (
           <div key={t.id} className="flex min-w-0 items-center gap-2 py-0.5 text-[12.5px] text-dim">
             <ShurikenMark size={14} muted />
             <button
