@@ -462,7 +462,14 @@ const Message = memo(function Message({ m, tasks }: { m: ChatMessage; tasks: Tas
   if (m.role === 'user') {
     return (
       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
-        <div className="max-w-[88%] rounded-2xl rounded-br-md bg-accent/16 px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap text-text ring-1 ring-accent/25">{m.text}</div>
+        <div className="max-w-[88%] rounded-2xl rounded-br-md bg-accent/16 px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap text-text ring-1 ring-accent/25">
+          {typeof (m.data?.collaboration as { sender?: string } | undefined)?.sender === 'string' && (
+            <div className="mb-1 text-[10.5px] font-semibold tracking-wide text-accent2">
+              Invité · {(m.data?.collaboration as { sender: string }).sender}
+            </div>
+          )}
+          {m.text}
+        </div>
       </motion.div>
     );
   }
