@@ -1,8 +1,7 @@
-import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { AsyncQueue } from '../../util/async';
 import type { ModelTier } from '@shared/domain';
 import type {
@@ -11,7 +10,6 @@ import type {
   ProviderCapabilities, ProviderDetection,
 } from '../types';
 
-const execFileAsync = promisify(execFile);
 const RATE_LIMIT = /rate.?limit|usage limit|too many requests|quota|(?:session|weekly) limit|limit reached|\b429\b/i;
 const AUTH_ERROR = /not logged in|not authenticated|please run.*login|unauthorized|authentication required/i;
 const SHELL_ERROR = /not recognized as an internal or external command|command not found|ENOENT|spawn .* failed/i;
@@ -45,7 +43,7 @@ export class CodexProvider implements IAgentProvider {
       env: { ...process.env, ...opts.env },
       windowsHide: true,
       shell: process.platform === 'win32',
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: 'pipe',
     });
   }
 
@@ -67,6 +65,7 @@ export class CodexProvider implements IAgentProvider {
       const timeout = setTimeout(() => { child.kill(); done(false); }, 15_000);
       child.on('close', () => clearTimeout(timeout));
       child.on('error', () => clearTimeout(timeout));
+      child.stdin.on('error', () => undefined);
       child.stdin.end();
     });
   }
@@ -90,11 +89,13 @@ export class CodexProvider implements IAgentProvider {
     const env = accountDir ? { CODEX_HOME: accountDir } : undefined;
     const result = await this.commandOutput(['login', 'status'], env);
     return {
-      authenticated: result.ok,
-      method: result.ok ? (result.stdout.toLowerCase().includes('api key') ? 'api key' : 'Codex CLI login') : null,
+      authenticated: result.ok && !/api key/i.test(result.stdout),
+      method: result.ok ? (/api key/i.test(result.stdout) ? 'api key (not permitted in subscription mode)' : 'Codex CLI login') : null,
       account: null,
       plan: null,
-      detail: result.ok ? result.stdout : 'Run codex login with your ChatGPT subscription. ' + (result.stderr || result.stdout),
+      detail: result.ok && /api key/i.test(result.stdout)
+        ? 'Codex is using a paid API key. Run codex logout and sign in with a ChatGPT subscription instead.'
+        : result.ok ? result.stdout : 'Run codex login with your ChatGPT subscription. ' + (result.stderr || result.stdout),
     };
   }
 
@@ -189,7 +190,10 @@ export class CodexProvider implements IAgentProvider {
         // The local Shuriken MCP endpoint needs loopback HTTP access. Codex's
         // workspace-write sandbox remains enabled; this also enables network access.
         if (req.toolServers.length) args.push('-c', 'sandbox_workspace_write.network_access=true');
-        if (req.model && req.model !== 'default') args.push('--model', req.model);
+        if (req.model && req.model !== 'default') {
+          if (!/^[a-zA-Z0-9._:-]+$/.test(req.model)) throw new Error('Invalid Codex model identifier');
+          args.push('--model', req.model);
+        }
         if (req.outputSchema) {
           const schema = join(temporary, 'result-schema.json');
           writeFileSync(schema, JSON.stringify(req.outputSchema), 'utf8');
@@ -209,6 +213,7 @@ export class CodexProvider implements IAgentProvider {
         // The actual task lives in stdin: no prompt/shell injection.
         args.push('-');
         const prompt = [req.instructions, req.prompt].filter(Boolean).join('\n\n');
+        // The URL comes from Shuriken's loopback MCP server, not arbitrary external endpoints.
         child = this.cli(args, { cwd: req.cwd, env: extraEnv });
         let partial = '';
         let stderr = '';
