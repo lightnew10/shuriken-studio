@@ -52,6 +52,18 @@ ensure Git and Node.js 24+ are installed and the fork was cloned with Git.
 
 Choices apply to **new runs**, not already-running agents.
 
+### Optional automatic Claude → Codex quota fallback
+
+Under **Settings → AI accounts → Automatic quota fallback**, enable **Use Codex when Claude reaches its quota**. This requires an installed Codex CLI authenticated with a ChatGPT subscription.
+
+- When all Claude accounts registered with Shuriken are blocked by reported quota limits, **new** Claude-assigned agent runs use Codex.
+- Existing Claude and Codex runs are never interrupted to change providers.
+- The project's task, files, and stored context are preserved, but a Claude-internal chat session **cannot** be resumed inside Codex. A new Codex session reconstructs the task context from Shuriken.
+- When Claude's recorded quota block expires, subsequent Claude-assigned runs return to Claude automatically. This is based on quota-reset signals and may not detect an unexpectedly early reset.
+- If Codex fails its CLI/login health check or reaches its own limit, no fallback is attempted: Claude-assigned work waits for Claude. There is no bypass of either quota.
+- Explicitly Codex-assigned roles stay on Codex.
+- This setting is opt-in and does not automatically increase the number of concurrent agents.
+
 ## Sandbox and permissions
 
 **Experimental: test on a duplicate Roblox project first.**
@@ -76,7 +88,7 @@ Choices apply to **new runs**, not already-running agents.
 
 ## Not implemented / not guaranteed
 
-- Automatic Claude → Codex or Codex → Claude quota failover.
+- Codex → Claude fallback when Codex reaches its quota (only Claude → Codex is supported).
 - Direct cross-provider session transfer.
 - Multiple Codex account profiles.
 - Exact Codex quota and reset-time display.
