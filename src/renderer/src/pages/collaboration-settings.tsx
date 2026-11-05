@@ -102,6 +102,7 @@ export function CollaborationSettings() {
             <p className="text-[12px] text-warn">The relay connection was lost. Reconnecting for up to 10 minutes. Remote work is unavailable until connected.</p>
           )}
           {session.data?.error && <p role="status" className="text-[12px] text-warn">{session.data.error}</p>}
+          <p className="text-[11.5px] text-warn">Session messages and visible Director/task text currently transit over TLS, but are not yet end-to-end encrypted: the relay operator could inspect them. Never include secrets or private account information.</p>}
           <Field label="Your display name">
             <input className={inputClass} placeholder="Displayed to collaborators" value={name} maxLength={48} disabled={active || busy} onChange={(e) => setName(e.target.value)} />
           </Field>
