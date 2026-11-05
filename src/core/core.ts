@@ -27,6 +27,7 @@ import { GameAdoption } from './projects/adoption';
 import { DossierStore } from './projects/game-study';
 import { ProviderRegistry } from './providers/provider-registry';
 import { ClaudeProvider, DEFAULT_CLAUDE_SETTINGS } from './providers/claude/claude-provider';
+import { CodexProvider } from './providers/codex/codex-provider';
 import type { IAgentProvider, ProbeContext } from './providers/types';
 import { ShurikenMcpServer } from './mcp/mcp-server';
 import { createMcpContent } from './mcp/mcp-content';
@@ -235,6 +236,7 @@ export class Core {
     this.providers = new ProviderRegistry(this.global);
     const providers = opts.providers ?? [
       new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
+      new CodexProvider(),
     ];
     for (const p of providers) this.providers.register(p);
     this.usage = new UsageTracker(this.global, this.bus);
