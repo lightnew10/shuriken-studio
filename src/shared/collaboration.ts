@@ -24,11 +24,28 @@ export interface CollabChatEntry {
   text: string;
   at: string;
 }
+export interface CollabTaskSummary {
+  id: string;
+  title: string;
+  role: string;
+  status: string;
+  updatedAt: string;
+}
+export interface CollabDirectorSummary {
+  id: string;
+  role: 'user' | 'director' | 'system';
+  kind: string;
+  text: string;
+  createdAt: string;
+}
 export type CollabPayload =
   | { kind: 'chat'; message: CollabChatEntry }
   | { kind: 'sync-request' }
   | { kind: 'history'; messages: CollabChatEntry[] }
-  | { kind: 'project-status'; name: string; projectId: string | null; taskCount: number };
+  | { kind: 'project-status'; name: string; projectId: string | null; taskCount: number }
+  | { kind: 'task-batch'; tasks: CollabTaskSummary[]; reset?: boolean }
+  | { kind: 'task-remove'; id: string }
+  | { kind: 'director-batch'; messages: CollabDirectorSummary[]; reset?: boolean };
 export type CollabClientFrame =
   | { v: 1; type: 'hello'; role: CollabRole; secret: string; name: string }
   | { v: 1; type: 'leave' }
@@ -98,6 +115,37 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
     } catch { return null; }
   }
   if (!senderIsHost) return null;
+  if (value.kind === 'task-batch' && Array.isArray(value.tasks) && value.tasks.length <= 40) {
+    const tasks: CollabTaskSummary[] = [];
+    for (const task of value.tasks) {
+      if (!task || typeof task !== 'object') return null;
+      const t = task as Record<string, unknown>;
+      if (typeof t.id !== 'string' || t.id.length > 100 || !t.id ||
+          typeof t.title !== 'string' || t.title.length > 250 ||
+          typeof t.role !== 'string' || t.role.length > 100 ||
+          typeof t.status !== 'string' || t.status.length > 48 ||
+          typeof t.updatedAt !== 'string' || !Number.isFinite(Date.parse(t.updatedAt))) return null;
+      tasks.push({ id: t.id, title: t.title, role: t.role, status: t.status, updatedAt: t.updatedAt });
+    }
+    return { kind: 'task-batch', tasks, ...(value.reset === true ? { reset: true } : {}) };
+  }
+  if (value.kind === 'task-remove' && typeof value.id === 'string' && value.id.length > 0 && value.id.length <= 100)
+    return { kind: 'task-remove', id: value.id };
+  if (value.kind === 'director-batch' && Array.isArray(value.messages) && value.messages.length <= 15) {
+    const messages: CollabDirectorSummary[] = [];
+    for (const message of value.messages) {
+      if (!message || typeof message !== 'object') return null;
+      const m = message as Record<string, unknown>;
+      if (typeof m.id !== 'string' || m.id.length > 100 || !m.id ||
+          !['user', 'director', 'system'].includes(String(m.role)) ||
+          typeof m.kind !== 'string' || m.kind.length > 48 ||
+          typeof m.text !== 'string' || m.text.length > 3_000 ||
+          typeof m.createdAt !== 'string' || !Number.isFinite(Date.parse(m.createdAt))) return null;
+      messages.push({ id: m.id, role: m.role as CollabDirectorSummary['role'], kind: m.kind,
+        text: m.text, createdAt: m.createdAt });
+    }
+    return { kind: 'director-batch', messages, ...(value.reset === true ? { reset: true } : {}) };
+  }
   if (value.kind === 'history') {
     if (!Array.isArray(value.messages) || value.messages.length > COLLAB_MAX_CHAT_HISTORY) return null;
     const messages: CollabChatEntry[] = [];
