@@ -16,6 +16,7 @@ interface CollaborationStatus {
   messages: Message[];
   reconnectSeconds: number | null;
   remoteProject: { name: string; projectId: string | null; taskCount: number } | null;
+  hostOnline: boolean;
   error: string | null;
   remoteAgentsEnabled: false;
 }
@@ -54,7 +55,8 @@ export function CollaborationSettings() {
   const connected = session.data?.connection === 'connected';
   const active = !!session.data?.role;
   const hostname = session.data?.role === 'host';
-  const online = session.data?.connection === 'connected';
+  const online = session.data?.connection === 'connected' &&
+    (session.data.role === 'host' || session.data.hostOnline);
   const label = online ? 'Connected' : session.data?.connection === 'reconnecting' ? 'Reconnecting' :
     session.data?.connection === 'connecting' ? 'Connecting' : 'Offline';
   const invitation = session.data?.invitation ?? '';
@@ -89,6 +91,9 @@ export function CollaborationSettings() {
             </div>
             {active && <Pill tone={connected ? 'ok' : 'neutral'}>{hostname ? 'Host' : 'Guest'}</Pill>}
           </div>
+          {session.data?.role === 'guest' && !session.data.hostOnline && session.data.connection === 'connected' && (
+            <p className="text-[12px] text-warn">The host is offline. You are still in the room, but new messages and agent operations must wait for reconnection.</p>
+          )}
           {session.data?.connection === 'reconnecting' && (
             <p className="text-[12px] text-warn">The relay connection was lost. Reconnecting for up to 10 minutes. Remote work is unavailable until connected.</p>
           )}
