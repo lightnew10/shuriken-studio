@@ -82,7 +82,23 @@ try {
   const project = waitFor(guest, (f) => f.type === 'payload' && f.data?.kind === 'project-status');
   host.send(JSON.stringify({ v: 1, type: 'payload', data: { kind: 'project-status', name: 'Impulse Simulator', projectId: 'game01', taskCount: 42 } }));
   if ((await project).data.taskCount !== 42) throw new Error('Project metadata not synchronized');
-  console.log('PASS: authenticated host/guest, attested chat, role guard and project status');
+  // An authenticated guest can ask the Director, but the request never executes in the relay
+  // or on another guest; only the host's application receives it.
+  const id = 'e2a4375a-0ad2-46d8-a4cb-b37ce5443a42';
+  const instruction = waitFor(host, (f) => f.type === 'payload' && f.data?.kind === 'director-request');
+  guest.send(JSON.stringify({ v: 1, type: 'payload', data: { kind: 'director-request', id, text: 'Build a shop GUI' } }));
+  const requested = await instruction;
+  if (requested.from.id !== member.self.id || requested.data.id !== id || requested.data.text !== 'Build a shop GUI')
+    throw new Error('Guest Director request did not reach the authenticated host');
+  const receipt = waitFor(guest, (f) => f.type === 'payload' && f.data?.kind === 'director-receipt');
+  host.send(JSON.stringify({ v: 1, type: 'payload', to: member.self.id,
+    data: { kind: 'director-receipt', receipt: { id, status: 'accepted' } } }));
+  if ((await receipt).data.receipt.id !== id) throw new Error('Host delivery receipt was not returned to guest');
+  const forbidden = waitFor(guest, (f) => f.type === 'error');
+  guest.send(JSON.stringify({ v: 1, type: 'payload',
+    data: { kind: 'director-receipt', receipt: { id, status: 'accepted' } } }));
+  await forbidden;
+  console.log('PASS: host/guest authentication, chat, permissions, project sync, remote Director request + receipt');
 } catch (error) {
   console.error(error);
   process.exitCode = 1;
