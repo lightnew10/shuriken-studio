@@ -50,6 +50,13 @@ export interface CollabDirectorSummary {
   /** Display only; set by the authoritative host on a guest-initiated Director message. */
   sender?: string;
 }
+/** Safe activity marker; no agent private thinking, tool arguments, paths or token streams. */
+export interface CollabRunActivity {
+  runId: string;
+  taskId: string | null;
+  kind: 'writing' | 'thinking' | 'tool-use' | 'tool-result' | 'status';
+  at: string;
+}
 export interface CollabRunSummary {
   id: string;
   taskId: string | null;
@@ -80,7 +87,9 @@ export type CollabPayload =
   | { kind: 'director-batch'; messages: CollabDirectorSummary[]; reset?: boolean }
   | { kind: 'director-request'; id: string; text: string }
   | { kind: 'director-receipt'; receipt: CollabRequestReceipt }
-  | { kind: 'run-batch'; runs: CollabRunSummary[]; reset?: boolean };
+  | { kind: 'run-batch'; runs: CollabRunSummary[]; reset?: boolean }
+  | { kind: 'run-activity'; activity: CollabRunActivity }
+  | { kind: 'director-typing'; typing: boolean };
 export type CollabClientFrame =
   | { v: 1; type: 'hello'; role: CollabRole; secret: string; name: string }
   | { v: 1; type: 'leave' }
@@ -187,6 +196,20 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
         text: m.text, createdAt: m.createdAt, ...(typeof m.sender === 'string' ? { sender: m.sender } : {}) });
     }
     return { kind: 'director-batch', messages, ...(value.reset === true ? { reset: true } : {}) };
+  }
+  if (value.kind === 'director-typing' && typeof value.typing === 'boolean')
+    return { kind: 'director-typing', typing: value.typing };
+  if (value.kind === 'run-activity') {
+    if (!value.activity || typeof value.activity !== 'object') return null;
+    const act = value.activity as Record<string, unknown>;
+    if (typeof act.runId !== 'string' || !act.runId || act.runId.length > 100 ||
+        (act.taskId !== null && (typeof act.taskId !== 'string' || act.taskId.length > 100)) ||
+        !['writing', 'thinking', 'tool-use', 'tool-result', 'status'].includes(String(act.kind)) ||
+        typeof act.at !== 'string' || !Number.isFinite(Date.parse(act.at))) return null;
+    return { kind: 'run-activity', activity: {
+      runId: act.runId, taskId: act.taskId as string | null,
+      kind: act.kind as CollabRunActivity['kind'], at: act.at,
+    } };
   }
   if (value.kind === 'director-receipt') {
     const r = value.receipt;
