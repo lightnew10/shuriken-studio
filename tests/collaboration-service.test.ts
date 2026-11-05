@@ -61,6 +61,8 @@ describe('CollaborationService (no AI account sharing)', () => {
         getName: () => name,
         saveName: (n) => { name = n; },
         localProject: () => ({ name: 'Impulse Simulator', projectId: 'game01', taskCount: 12 }),
+        localTasks: () => [{ id: 'task-01', title: 'Build combat', role: 'roblox-engineer', status: 'running', updatedAt: new Date().toISOString() }],
+        localDirector: () => [{ id: 'msg-01', role: 'director', kind: 'text', text: 'Building the combat system', createdAt: new Date().toISOString() }],
       }),
       changed,
     };
