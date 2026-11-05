@@ -27,5 +27,7 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Typecheck Electron and renderer
         run: npm run typecheck
+      - name: Bundle Electron app
+        run: npm run build
       - name: Run Codex adapter tests
         run: npx vitest run tests/codex-provider.test.ts
