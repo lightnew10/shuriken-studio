@@ -55,8 +55,7 @@ interface AccountsInfo {
 
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance' },
-  { id: 'accounts', label: 'Claude accounts' },
-  { id: 'providers', label: 'AI providers' },
+  { id: 'accounts', label: 'AI accounts' },
   { id: 'agents', label: 'Agents' },
   { id: 'storefront', label: 'Storefront' },
   { id: 'roblox', label: 'Roblox & Studio' },
@@ -65,7 +64,7 @@ const SECTIONS = [
 ] as const;
 
 /** Links from before the sections were split (Blender and Kiln were under Agents). */
-const sectionOf = (id: string | undefined): string => (id === 'blender' || id === 'kiln' ? 'models' : SECTIONS.some((s) => s.id === id) ? id! : 'appearance');
+const sectionOf = (id: string | undefined): string => (id === 'blender' || id === 'kiln' ? 'models' : id === 'providers' ? 'accounts' : SECTIONS.some((s) => s.id === id) ? id! : 'appearance');
 
 export function SettingsPage({ section }: { section?: string }) {
   const [active, setActive] = useState<string>(() => sectionOf(section));
@@ -91,7 +90,6 @@ export function SettingsPage({ section }: { section?: string }) {
           <div className="mx-auto max-w-3xl px-8 py-8">
             {active === 'appearance' && <AppearanceSection />}
             {active === 'accounts' && <AccountsSection />}
-            {active === 'providers' && <ProvidersSection />}
             {active === 'agents' && <AgentsSection />}
             {active === 'storefront' && <StorefrontSection />}
             {active === 'roblox' && <RobloxSection />}
@@ -163,7 +161,7 @@ function AccountsSection() {
     <>
       <Section
         title="Claude accounts"
-        hint="The Claude login already on this PC counts as one account. Add each other subscription you want agents to use and sign in once. Shuriken Studio draws from the one in use, switches to another when it reaches a limit, and resumes by itself when limits reset."
+        hint="Your Claude subscriptions are managed here. Connect Codex below to use your ChatGPT subscription too. Claude account rotation and quota recovery apply only to Claude, not to Codex."
       >
         <div className="space-y-2.5">
           {(info.data?.accounts ?? []).map((a) => {
@@ -180,7 +178,7 @@ function AccountsSection() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 text-[14px] font-medium text-text">
                     {a.label}
-                    {isActive && <Pill tone="accent">Default</Pill>}
+                    {isActive && <Pill tone="accent">Claude default</Pill>}
                     {a.usage.blocked && <Pill tone="bad">At limit{a.usage.blockedUntil ? ` · back ${new Date(a.usage.blockedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</Pill>}
                   </div>
                   <div className="mt-0.5 text-[12px] text-faint">
@@ -192,7 +190,7 @@ function AccountsSection() {
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   {a.signedIn && !isActive && a.eligible !== false && (
-                    <Button size="sm" title="Every window uses this account unless it picked its own in the top bar" onClick={() => void rpc('accounts.setDefault', { id: a.id }).then(() => info.reload())}>
+                    <Button size="sm" title="Default Claude account for windows that do not choose their own" onClick={() => void rpc('accounts.setDefault', { id: a.id }).then(() => info.reload())}>
                       Make default
                     </Button>
                   )}
@@ -206,7 +204,7 @@ function AccountsSection() {
             );
           })}
           {info.data && info.data.accounts.every((a) => a.builtin) && (
-            <div className="px-1 pt-1 text-[12.5px] text-faint">Add your other Claude subscriptions below to switch between them, or to keep working when one reaches its limit.</div>
+            <div className="px-1 pt-1 text-[12.5px] text-faint">Add another Claude subscription to rotate between Claude accounts. Codex is configured below as a separate provider.</div>
           )}
         </div>
         <div className="mt-4 flex items-center gap-2">
@@ -217,13 +215,14 @@ function AccountsSection() {
         </div>
         <ErrorNote error={add.error ?? refresh.error} />
       </Section>
-      <Section title="When a limit is reached">
+      <ProvidersSection />
+      <Section title="Claude quota and recovery" hint="These settings apply to Claude accounts only. Switching to Codex when Claude reaches its quota is not automatic in this version.">
         <div className="card divide-y divide-line px-4">
           <Toggle
             checked={policy?.autoSwitch ?? true}
             onChange={(v) => void rpc('accounts.setPolicy', { autoSwitch: v }).then(() => info.reload())}
-            label="Switch to another account"
-            hint="If the active account hits its 5-hour or weekly limit, continue on another signed-in account that has room."
+            label="Switch to another Claude account"
+            hint="If the active Claude account reaches its quota, continue on another signed-in Claude account that has room. Codex is not part of this rotation."
           />
           <Toggle
             checked={policy?.usePcLogin ?? true}
@@ -234,8 +233,8 @@ function AccountsSection() {
           <Toggle
             checked={policy?.autoResume ?? true}
             onChange={(v) => void rpc('accounts.setPolicy', { autoResume: v }).then(() => info.reload())}
-            label="Resume automatically when a limit resets"
-            hint="Work waits and picks up again on its own at the reset time. Turn off to stay paused until you resume."
+            label="Resume Claude work when its quota resets"
+            hint="Claude tasks wait for a Claude quota reset when all selected Claude accounts are limited. This does not automatically transfer work to Codex."
           />
         </div>
       </Section>
@@ -272,33 +271,51 @@ function ProvidersSection() {
   const selected = info.data?.default ?? 'claude';
   return (
     <>
-      <Section title="Codex (ChatGPT)" hint="Optional Codex CLI login. Your ChatGPT subscription is used through the official Codex CLI, not through an OpenAI API key. Claude is unchanged.">
-        <div className="card space-y-3 px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <div className="text-[13px] font-medium text-text">
-                {codex.data?.installed ? 'Codex CLI ' + (codex.data.version ?? '') : 'Codex CLI not detected'}
+      <Section title="Codex account (ChatGPT)" hint="Connect the official Codex CLI to use your existing ChatGPT subscription alongside Claude. No OpenAI API key is required.">
+        <div className={cx('card space-y-3 px-4 py-4', selected === 'codex' && 'ring-1 ring-accent/50')}>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', ready ? 'bg-accent/15 text-accent2' : 'bg-white/5 text-faint')}>
+              <UserRound size={17} />
+            </div>
+            <div className="min-w-[180px] flex-1">
+              <div className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-text">
+                This PC's Codex login
+                {selected === 'codex' && <Pill tone="accent">Default AI</Pill>}
+                {ready && <Pill tone="ok">Connected</Pill>}
               </div>
               <div className="mt-1 text-[12px] text-dim">
-                {codex.data?.signedIn ? 'Signed in to Codex.' : (codex.data?.authDetail ?? codex.data?.detail ?? 'Checking the local Codex installation…')}
+                {codex.data?.signedIn
+                  ? `ChatGPT subscription via Codex CLI${codex.data.version ? ` · v${codex.data.version}` : ''}`
+                  : (codex.data?.authDetail ?? codex.data?.detail ?? 'Checking the local Codex installation…')}
               </div>
             </div>
-            {ready && <Pill tone="ok">Ready</Pill>}
-            <Button size="sm" kind="ghost" icon={<RefreshCw size={13} />} onClick={() => codex.reload()}>Refresh</Button>
-            {codex.data?.installed && (
-              <Button size="sm" icon={<LogIn size={13} />} onClick={() => setSigning(true)}>
-                {codex.data.signedIn ? 'Sign in again' : 'Sign in with ChatGPT'}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ready && selected !== 'codex' && (
+                <Button size="sm" disabled={saving} onClick={() => void select('codex', info.data?.roles ?? {})}>
+                  Make default AI
+                </Button>
+              )}
+              <Button size="sm" kind="ghost" icon={<RefreshCw size={13} />} title="Check Codex login" onClick={() => codex.reload()}>
+                Refresh
               </Button>
-            )}
+              {codex.data?.installed && (
+                <Button size="sm" kind={ready ? 'ghost' : 'primary'} icon={<LogIn size={13} />} onClick={() => setSigning(true)}>
+                  {ready ? 'Sign in again' : 'Sign in with ChatGPT'}
+                </Button>
+              )}
+            </div>
           </div>
           {!codex.data?.installed && (
             <p className="text-[12px] text-faint">
-              Install the official CLI with npm install -g @openai/codex, then restart Shuriken and sign in.
+              Install the official CLI using npm install -g @openai/codex, restart Shuriken, then sign in.
             </p>
           )}
+          <p className="text-[12px] text-faint">
+            Codex quota percentages are not available here. The automatic rotation above is for Claude accounts only; choose Codex as your agent provider to use it.
+          </p>
         </div>
       </Section>
-      <Section title="Agent provider" hint="Choose which subscription future agents use. Running tasks are not changed. Role overrides are optional.">
+      <Section title="Agent provider" hint="Select Claude or Codex for future agent runs. This is separate from choosing which Claude account to use. Running tasks are not changed.">
         <div className="card space-y-4 px-4 py-4">
           <Field label="Default agent provider">
             <select
