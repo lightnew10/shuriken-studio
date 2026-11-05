@@ -35,6 +35,8 @@ interface ProvidersInfo {
   roles: Record<string, string>;
   providers: Array<{ id: string; name: string }>;
   roleOptions?: Array<{ id: string; name: string }>;
+  codexFallbackEnabled: boolean;
+  codexFallbackActive: boolean;
 }
 
 interface CodexStatus {
@@ -161,7 +163,7 @@ function AccountsSection() {
     <>
       <Section
         title="Claude accounts"
-        hint="Your Claude subscriptions are managed here. Connect Codex below to use your ChatGPT subscription too. Claude account rotation and quota recovery apply only to Claude, not to Codex."
+        hint="Your Claude subscriptions are managed here. Connect Codex below to use your ChatGPT subscription too. Claude rotates among its own accounts; cross-provider fallback can be enabled separately."
       >
         <div className="space-y-2.5">
           {(info.data?.accounts ?? []).map((a) => {
@@ -216,7 +218,7 @@ function AccountsSection() {
         <ErrorNote error={add.error ?? refresh.error} />
       </Section>
       <ProvidersSection />
-      <Section title="Claude quota and recovery" hint="These settings apply to Claude accounts only. Switching to Codex when Claude reaches its quota is not automatic in this version.">
+      <Section title="Claude quota and recovery" hint="These controls apply to Claude's own accounts. Cross-provider Claude → Codex fallback is controlled separately in the section above.">
         <div className="card divide-y divide-line px-4">
           <Toggle
             checked={policy?.autoSwitch ?? true}
@@ -254,6 +256,19 @@ function ProvidersSection() {
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fallbackSaving, setFallbackSaving] = useState(false);
+  const setFallback = async (enabled: boolean) => {
+    setFallbackSaving(true);
+    setError(null);
+    try {
+      await rpc('providers.setCodexFallback', { enabled });
+      info.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFallbackSaving(false);
+    }
+  };
   const select = async (defaultId: string, roles: Record<string, string>) => {
     setSaving(true);
     setError(null);
@@ -311,8 +326,25 @@ function ProvidersSection() {
             </p>
           )}
           <p className="text-[12px] text-faint">
-            Codex quota percentages are not available here. The automatic rotation above is for Claude accounts only; choose Codex as your agent provider to use it.
+            Codex quota percentages are not available here. You can select it directly or enable automatic Claude → Codex fallback below.
           </p>
+        </div>
+      </Section>
+      <Section title="Automatic quota fallback" hint="When all connected Claude accounts are blocked by their quota, future Claude-assigned agent runs can use Codex. They return to Claude after the reported quota reset, without interrupting running Codex agents.">
+        <div className="card px-4">
+          <Toggle
+            checked={info.data?.codexFallbackEnabled ?? false}
+            onChange={(v) => void setFallback(v)}
+            label="Use Codex when Claude reaches its quota"
+            hint="Requires an authenticated Codex CLI. Claude remains preferred; Codex runs only while every Claude account is limited. This does not transfer an in-progress Claude session."
+          />
+          <div className="pb-3 text-[12px] text-faint">
+            {fallbackSaving ? 'Saving fallback setting…' :
+              info.data?.codexFallbackActive ? 'Active now: Claude is limited; new runs use Codex.' :
+              info.data?.codexFallbackEnabled ? 'Ready: Claude is preferred when available.' :
+              'Disabled: tasks wait for Claude instead of using Codex.'}
+          </div>
+          <ErrorNote error={error} />
         </div>
       </Section>
       <Section title="Agent provider" hint="Select Claude or Codex for future agent runs. This is separate from choosing which Claude account to use. Running tasks are not changed.">
@@ -358,8 +390,8 @@ function ProvidersSection() {
             Experimental: Codex CLI is read-only in Ask permission mode and workspace-write
             in Autonomous mode. Codex's own shell/file actions do not use Shuriken's per-tool
             approval dialog; Shuriken MCP tools still follow server-side permission checks.
-            Test on a copy of your Roblox project first. Automatic Claude/Codex switching is
-            not yet implemented.
+            Test on a copy of your Roblox project first. Cross-provider fallback happens
+            only between agent runs, never by migrating an active Claude session.
           </p>
           <ErrorNote error={error} />
         </div>
