@@ -295,6 +295,10 @@ export class AgentRunner {
         prompt: context.text,
         cwd: project.root,
         modelTier: tierFor(role, settings.modelTier),
+        // Codex exec cannot relay Shuriken's per-command approvals yet.
+        // In ask mode, restrict its filesystem sandbox to read-only; MCP tools
+        // still pass through Shuriken's own server-side approval policy.
+        ...(provider.id === 'codex' ? { providerSandbox: this.deps.permissionMode?.(project) === 'autonomous' ? 'workspace-write' as const : 'read-only' as const } : {}),
         effort: this.deps.effortFor?.(role) ?? role.effort,
         toolServers: [this.deps.mcp.refFor(token, 'shuriken')],
         builtinTools: role.builtinTools,
