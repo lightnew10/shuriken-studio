@@ -457,7 +457,13 @@ export function createRouter(core: Core): Record<string, Handler> {
       providers: core.providers.list().map((provider) => ({ id: provider.id, name: provider.displayName })),
       roleOptions: Object.values(ROLES).map((role) => ({ id: role.id, name: role.name })),
     }),
-    'providers.setAssignments': ({ default: selected, roles }: { default: string; roles: Record<string, string> }) => {
+    'providers.setAssignments': async ({ default: selected, roles }: { default: string; roles: Record<string, string> }) => {
+      const usesCodex = selected === 'codex' || Object.values(roles ?? {}).includes('codex');
+      if (usesCodex) {
+        const codex = core.providers.get('codex');
+        if (!codex || !(await codex.detect()).installed) throw new Error('Codex CLI is not installed on this PC.');
+        if (!(await codex.auth()).authenticated) throw new Error('Codex CLI is not signed in with a ChatGPT subscription. Use AI providers → Sign in with ChatGPT.');
+      }
       const allowedRoles = new Set(Object.keys(ROLES));
       const filtered: Record<string, string> = {};
       for (const [role, provider] of Object.entries(roles ?? {})) {
