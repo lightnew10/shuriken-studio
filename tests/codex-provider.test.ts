@@ -68,6 +68,7 @@ describe('Codex provider', () => {
       modelTier: 'balanced',
       toolServers: [],
       builtinTools: ['read_files', 'edit_files'],
+      providerSandbox: 'workspace-write',
       outputSchema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] },
       permission: async () => ({ allow: true }),
       signal: new AbortController().signal,
