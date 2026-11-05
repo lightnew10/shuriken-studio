@@ -123,6 +123,17 @@ describe('two independent Shuriken collaboration cores', () => {
     expect(guest.status().directorTyping).toBe(true);
     host.shareActivity({ runId: 'run-1', taskId: 'task-1', kind: 'tool-use', at: new Date().toISOString() });
     expect(guest.status().remoteActivity[0]?.kind).toBe('tool-use');
+    // An unexpected network loss keeps the room, and the existing host automatically
+    // re-authenticates; the guest resynchronizes without creating a second Studio.
+    const hostSocket = [...active].find((socket) => socket.peer?.role === 'host')!;
+    hostSocket.close(1006, 'network outage');
+    expect(host.status().connection).toBe('reconnecting');
+    expect(guest.status().hostOnline).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 1250));
+    expect(host.status().connection).toBe('connected');
+    expect(guest.status().hostOnline).toBe(true);
+    expect(guest.status().remoteTasks[0]?.title).toBe('Arena setup');
+
     host.setGuestRequests(false);
     expect(guest.status().guestRequestsEnabled).toBe(false);
     guest.leave();
