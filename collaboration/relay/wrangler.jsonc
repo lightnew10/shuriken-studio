@@ -1,0 +1,24 @@
+{
+  "name": "shuriken-collaboration-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-30",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "COLLAB_ROOMS",
+        "class_name": "CollabRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "CollabRoom"
+      ]
+    }
+  ],
+  "observability": {
+    "enabled": false
+  }
+}
