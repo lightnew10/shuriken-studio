@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/dashboard';
 import { ViewerPage } from './pages/viewer';
 import { AgentsPage } from './pages/agents';
 import { SettingsPage } from './pages/settings';
+import { CollaborationWorkspacePage } from './pages/collaboration-workspace';
 import { ModelsPage } from './pages/models';
 import { AudioPage } from './pages/audio';
 import { AnimationPage } from './pages/animation';
@@ -20,7 +21,7 @@ import { StripMenus } from './components/strip-menus';
 import { KilnPage } from './pages/kiln';
 import { OpenGameHost, openGameDialog } from './components/open-game';
 
-const PAGES: Page[] = ['start', 'dashboard', 'viewer', 'agents', 'models', 'audio', 'animation', 'ui', 'kiln', 'storefront', 'references', 'settings'];
+const PAGES: Page[] = ['start', 'dashboard', 'viewer', 'agents', 'models', 'audio', 'animation', 'ui', 'kiln', 'storefront', 'references', 'settings', 'collaboration'];
 
 // Renderer errors go to the session journal (and the smoke report).
 const errors: string[] = [];
@@ -87,7 +88,7 @@ export function App() {
 function AppFrame({ page, id }: { page: Page; id?: string }) {
   const project = useCurrentProject();
   // Project pages need an open project; without one, the start page is where you pick or begin one.
-  const orphan = project.data === null && !project.loading && page !== 'settings';
+  const orphan = project.data === null && !project.loading && page !== 'settings' && page !== 'collaboration';
   useEffect(() => {
     if (orphan) navigate('start');
   }, [orphan]);
@@ -112,6 +113,7 @@ function AppFrame({ page, id }: { page: Page; id?: string }) {
         {page === 'storefront' && <StorefrontPage tab={id} />}
         {page === 'references' && <ReferencesPage selectedId={id} />}
         {page === 'settings' && <SettingsPage section={id} />}
+        {page === 'collaboration' && <CollaborationWorkspacePage />}
       </motion.div>
     </AnimatePresence>
   );
