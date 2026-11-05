@@ -6,7 +6,7 @@ import {
   truncateCollabHistory, validChatText, validCollabName, validRelayUrl,
   type CollabChatEntry, type CollabConnection, type CollabPayload, type CollabPeer,
   type CollabRole, type CollabServerFrame, type CollabClientFrame,
-  type CollabTaskSummary, type CollabDirectorSummary,
+  type CollabTaskSummary, type CollabDirectorSummary, type CollabHeaderStatus,
 } from '@shared/collaboration';
 
 type Session = {
@@ -64,6 +64,17 @@ export class CollaborationService {
   private retry = 0;
 
   constructor(private readonly deps: CollaborationDeps) {}
+
+  /** Called frequently by the global header, intentionally excludes messages, tasks and invite keys. */
+  headerStatus(): CollabHeaderStatus {
+    return {
+      role: this.session?.role ?? null,
+      connection: this.state,
+      peers: [...this.peers],
+      selfId: this.selfId,
+      hostOnline: this.state === 'connected' && this.peers.some((peer) => peer.role === 'host'),
+    };
+  }
 
   status(): CollaborationStatus {
     return {
