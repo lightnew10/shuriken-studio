@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AsyncQueue } from '../../util/async';
 import type { ModelTier } from '@shared/domain';
+import { isAllowedCodexModel } from './codex-models';
 import type {
   AgentEvent, AgentRunHandle, AgentRunRequest, CompletionErrorKind,
   IAgentProvider, IProviderDiagnostics, ProbeResult, ProviderAuthStatus,
@@ -34,6 +35,8 @@ export class CodexProvider implements IAgentProvider {
   readonly displayName = 'Codex (ChatGPT)';
   readonly adapterVersion = '0.1.0';
   readonly testedVersions: string[] = [];
+
+  constructor(private readonly selectedModel: (tier: ModelTier) => string = () => 'default') {}
 
   private cli(programArgs: string[], opts: { cwd?: string; env?: Record<string, string> } = {}): ChildProcessWithoutNullStreams {
     // On Windows, npm installs codex.cmd; use the command shell for that shim.
@@ -123,9 +126,11 @@ export class CodexProvider implements IAgentProvider {
     };
   }
 
-  modelForTier(_tier: ModelTier): string {
-    // Let the signed-in Codex CLI select its supported default model for this plan.
-    return 'default';
+  modelForTier(tier: ModelTier): string {
+    const model = this.selectedModel(tier);
+    if (model === 'default') return 'default';
+    if (!isAllowedCodexModel(model)) throw new Error('Invalid or excluded Codex model: ' + model);
+    return model;
   }
 
   diagnostics(): IProviderDiagnostics {
@@ -147,6 +152,7 @@ export class CodexProvider implements IAgentProvider {
 
   run(req: AgentRunRequest): AgentRunHandle {
     const events = new AsyncQueue<AgentEvent>();
+    const chosenModel = req.model ?? this.modelForTier(req.modelTier);
     let child: ChildProcessWithoutNullStreams | null = null;
     let interrupted = false;
     const abort = () => {
@@ -168,7 +174,7 @@ export class CodexProvider implements IAgentProvider {
       const startedEvent = () => {
         if (started) return;
         started = true;
-        events.push({ type: 'started', providerSessionId: sessionId, model: req.model || null, providerVersion: null, tools: [], toolServers: [], authSource: 'Codex CLI login' });
+        events.push({ type: 'started', providerSessionId: sessionId, model: chosenModel === 'default' ? null : chosenModel, providerVersion: null, tools: [], toolServers: [], authSource: 'Codex CLI login' });
       };
       try {
         if (req.signal.aborted) { interrupted = true; throw new Error('Run interrupted'); }
@@ -189,9 +195,9 @@ export class CodexProvider implements IAgentProvider {
         }
         // Codex itself connects to MCP. Do not open the sandbox's network access
         // for model-generated shell commands merely to reach a local MCP server.
-        if (req.model && req.model !== 'default') {
-          if (!/^[a-zA-Z0-9._:-]+$/.test(req.model)) throw new Error('Invalid Codex model identifier');
-          args.push('--model', req.model);
+        if (chosenModel !== 'default') {
+          if (!isAllowedCodexModel(chosenModel)) throw new Error('Astra and invalid Codex models are excluded.');
+          args.push('--model', chosenModel);
         }
         if (req.outputSchema) {
           const schema = join(temporary, 'result-schema.json');
