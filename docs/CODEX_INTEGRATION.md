@@ -26,7 +26,7 @@ to avoid accidental pay-per-token billing. No OpenAI API key is created by Shuri
 4. Open **Settings → AI accounts**. The Codex login appears directly below your Claude accounts.
 5. Click **Refresh**. Codex must be detected and signed in.
 6. If necessary, click **Sign in with ChatGPT** and complete the official login.
-7. Select **Codex (ChatGPT)** as the default provider or override individual agent roles.
+7. Use **Make default AI** on the Codex account, or choose **Codex (ChatGPT)** in the agent-provider selector below. You can override individual agent roles as well.
 
 Choices apply to **new runs**, not already-running agents.
 
