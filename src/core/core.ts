@@ -241,6 +241,14 @@ export class Core {
     for (const p of providers) this.providers.register(p);
     this.usage = new UsageTracker(this.global, this.bus);
     this.accounts = new AccountService(this.global, opts.dataDir, this.bus);
+    // Provider fallback is consulted at the start of each new run, not by
+    // reassigning active agents. Quota exhaustion must be confirmed, and
+    // Codex must have passed the latest local CLI/authentication health check.
+    this.providers.setCodexFallbackAvailability(() =>
+      !this.accounts.anyCanStart('claude', this.usage) &&
+      this.usage.canStartRun('codex').ok &&
+      this.health.get('provider:codex')?.status === 'healthy',
+    );
     // This window's own account (the top bar's menu): kept with its open project, in memory when none is open.
     const windowAccounts = new Map<string, string>();
     this.accounts.setScope({
