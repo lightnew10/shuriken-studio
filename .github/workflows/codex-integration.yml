@@ -34,4 +34,22 @@ jobs:
       - name: Bundle Electron app
         run: npm run build
       - name: Run Codex adapter tests
-        run: npx vitest run tests/codex-provider.test.ts tests/codex-fallback.test.ts tests/codex-models.test.ts
+        run: npx vitest run tests/codex-provider.test.ts tests/codex-fallback.test.ts tests/codex-models.test.ts tests/collaboration-protocol.test.ts tests/collaboration-service.test.ts
+
+  cloudflare-relay-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install relay tooling
+        working-directory: collaboration/relay
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Typecheck Cloudflare relay
+        working-directory: collaboration/relay
+        run: npm run typecheck
+      - name: Bundle Cloudflare relay without deploying
+        working-directory: collaboration/relay
+        run: npx wrangler deploy --dry-run --outdir ../../build/collaboration-relay
