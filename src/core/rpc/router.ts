@@ -456,6 +456,7 @@ export function createRouter(core: Core): Record<string, Handler> {
     // ─── Terminal ───────────────────────────────────────────────────────────
     // ─── Collaboration (C1: relay, presence and human chat only) ──────────────
     'collaboration.status': () => core.collaboration.status(),
+    'collaboration.header': () => core.collaboration.headerStatus(),
     'collaboration.configure': (input: { relay: string; name: string }) => core.collaboration.configure(input),
     'collaboration.host': () => core.collaboration.host(),
     'collaboration.join': ({ invitation }: { invitation: string }) => core.collaboration.join(invitation),
