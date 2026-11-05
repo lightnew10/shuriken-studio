@@ -39,6 +39,12 @@ interface ProvidersInfo {
   codexFallbackActive: boolean;
 }
 
+type CodexTier = 'fast' | 'balanced' | 'deep';
+type CodexTierModels = Record<CodexTier, string>;
+interface CodexModelCatalog {
+  models: Array<{ id: string; name: string; isDefault: boolean }>;
+  selected: CodexTierModels;
+}
 interface CodexStatus {
   installed: boolean;
   version: string | null;
@@ -282,6 +288,23 @@ function ProvidersSection() {
     }
   };
   const ready = codex.data?.installed && codex.data?.signedIn;
+  const catalog = useRpc<CodexModelCatalog>(ready ? 'providers.codex.models' : null);
+  const [modelSaving, setModelSaving] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const setTierModel = async (tier: CodexTier, id: string) => {
+    if (!catalog.data || modelSaving) return;
+    const next = { ...catalog.data.selected, [tier]: id };
+    setModelSaving(true);
+    setModelError(null);
+    try {
+      await rpc('providers.codex.setModels', { models: next });
+      catalog.reload();
+    } catch (e) {
+      setModelError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setModelSaving(false);
+    }
+  };
   const roles = info.data?.roleOptions ?? [];
   const selected = info.data?.default ?? 'claude';
   return (
@@ -328,6 +351,50 @@ function ProvidersSection() {
           <p className="text-[12px] text-faint">
             Codex quota percentages are not available here. You can select it directly or enable automatic Claude → Codex fallback below.
           </p>
+        </div>
+      </Section>
+      <Section title="Codex models by task level" hint="Same Fast / Balanced / Deep tiers as Claude, with independently selected Codex models. Available models are loaded from the installed Codex CLI; Astra is excluded.">
+        <div className="card space-y-3 px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[12px] text-dim">
+              {catalog.loading ? 'Reading Codex model catalog…' : catalog.data ? `${catalog.data.models.length} selectable models` : 'Connect Codex to load its models.'}
+            </div>
+            <Button size="sm" kind="ghost" icon={<RefreshCw size={13} />} disabled={!ready || catalog.loading || modelSaving} onClick={() => catalog.reload()}>
+              Refresh models
+            </Button>
+          </div>
+          {(['fast', 'balanced', 'deep'] as const).map((tier) => {
+            const current = catalog.data?.selected[tier] ?? 'default';
+            const available = catalog.data?.models ?? [];
+            const oldModel = current !== 'default' && !available.some((m) => m.id === current);
+            return (
+              <Field key={tier} label={tier === 'fast' ? 'Fast — small tasks' : tier === 'balanced' ? 'Balanced — everyday tasks' : 'Deep — complex tasks'}>
+                <select
+                  className={inputClass}
+                  value={current}
+                  disabled={!ready || !catalog.data || catalog.loading || modelSaving}
+                  onChange={(e) => void setTierModel(tier, e.target.value)}
+                  aria-label={`Codex model for ${tier}`}
+                >
+                  <option value="default">Codex CLI default (not pinned)</option>
+                  {oldModel && <option value={current} disabled>{current} — no longer in catalog</option>}
+                  {available.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}{model.isDefault ? ' (CLI recommendation)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            );
+          })}
+          <p className="text-[12px] text-faint">
+            Changes apply to new Codex runs, including Claude quota fallback. Existing runs continue on their original model. The CLI catalog is not an entitlement check; unavailable models can still fail at runtime.
+          </p>
+          <p className="text-[12px] text-warn">
+            Astra is never selectable. To avoid an unverified CLI default model, select an explicit model for each tier.
+          </p>
+          {catalog.error && <ErrorNote error={catalog.error} />}
+          <ErrorNote error={modelError} />
         </div>
       </Section>
       <Section title="Automatic quota fallback" hint="When all connected Claude accounts are blocked by their quota, future Claude-assigned agent runs can use Codex. They return to Claude after the reported quota reset, without interrupting running Codex agents.">
