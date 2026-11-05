@@ -128,6 +128,8 @@ export class CollaborationService {
 
   async host(): Promise<CollaborationStatus> {
     this.requireInactive();
+    // No consent is silently inherited from an earlier collaboration session.
+    this.deps.saveAllowGuestRequests(false);
     const relay = validRelayUrl(this.deps.getRelay() ?? '');
     const name = validCollabName(this.deps.getName() ?? '');
     const secret = randomBytes(32).toString('hex');
@@ -152,6 +154,7 @@ export class CollaborationService {
 
   /** Explicit logout never grants 10 minutes of continued access. */
   leave(): CollaborationStatus {
+    if (this.session?.role === 'host') this.deps.saveAllowGuestRequests(false);
     this.stopped = true;
     this.clearRetry();
     this.finishOpening(new Error('Session left by user'));
