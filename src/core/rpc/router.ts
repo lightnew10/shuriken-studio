@@ -453,6 +453,37 @@ export function createRouter(core: Core): Record<string, Handler> {
     },
 
     // ─── Terminal ───────────────────────────────────────────────────────────
+    // ─── AI providers ─────────────────────────────────────────────────────────
+    'providers.assignments': () => ({
+      ...core.providers.assignments(),
+      providers: core.providers.list().map((provider) => ({ id: provider.id, name: provider.displayName })),
+      roles: Object.values(ROLES).map((role) => ({ id: role.id, name: role.name })),
+    }),
+    'providers.setAssignments': ({ default: selected, roles }: { default: string; roles: Record<string, string> }) => {
+      const allowedRoles = new Set(Object.keys(ROLES));
+      const filtered: Record<string, string> = {};
+      for (const [role, provider] of Object.entries(roles ?? {})) {
+        if (!allowedRoles.has(role)) throw new Error('Unknown agent role: ' + role);
+        if (provider !== selected) filtered[role] = provider;
+      }
+      core.providers.setAssignments({ default: selected, roles: filtered });
+      core.orchestrator.kick();
+      return core.providers.assignments();
+    },
+    'providers.codex.status': async () => {
+      const provider = core.providers.get('codex');
+      if (!provider) throw new Error('Codex provider is not registered');
+      const detected = await provider.detect();
+      const auth = detected.installed ? await provider.auth() : null;
+      return { installed: detected.installed, version: detected.version, detail: detected.detail, signedIn: !!auth?.authenticated, authDetail: auth?.detail ?? null };
+    },
+    'providers.codex.signIn': async ({ cols, rows }: { cols?: number; rows?: number } = {}) => {
+      const provider = core.providers.get('codex');
+      const cmd = await provider?.signInCommand?.('');
+      if (!cmd) throw new Error('Codex CLI not found. Install @openai/codex and restart Shuriken Studio.');
+      return core.terminals.create({ cwd: core.opts.dataDir, shell: cmd.command, args: cmd.args, env: cmd.env, cols, rows });
+    },
+
     // ─── Accounts (several subscriptions of one provider) ─────────────────────
     'accounts.list': () => {
       // The added accounts plus the PC's own Claude login (a built-in account that can't be removed).
