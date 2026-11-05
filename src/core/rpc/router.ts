@@ -462,7 +462,7 @@ export function createRouter(core: Core): Record<string, Handler> {
       if (usesCodex) {
         const codex = core.providers.get('codex');
         if (!codex || !(await codex.detect()).installed) throw new Error('Codex CLI is not installed on this PC.');
-        if (!(await codex.auth()).authenticated) throw new Error('Codex CLI is not signed in with a ChatGPT subscription. Use AI providers → Sign in with ChatGPT.');
+        if (!(await codex.auth()).authenticated) throw new Error('Codex CLI is not signed in with a ChatGPT subscription. Open Settings → AI accounts → Codex account and sign in with ChatGPT.');
       }
       const allowedRoles = new Set(Object.keys(ROLES));
       const filtered: Record<string, string> = {};
