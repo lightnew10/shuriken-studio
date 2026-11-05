@@ -278,11 +278,14 @@ export class Director {
     return { objective, message };
   }
 
-  /** A message from the user. Returns immediately; replies arrive as chat events. */
-  send(text: string): ChatMessage {
+  /** A message from the host or an authenticated collaborator. Executes only in the host core. */
+  send(text: string, collaboration?: { sender: string; peerId: string; requestId: string }): ChatMessage {
     const p = this.require();
     const chat = new ChatService(p, this.d.bus);
-    const msg = chat.add({ role: 'user', kind: 'text', text });
+    const msg = chat.add({
+      role: 'user', kind: 'text', text,
+      ...(collaboration ? { data: { collaboration } } : {}),
+    });
     // Every message is read first, the first one too: in a project opened blank, "hi" or "what can
     // you do?" is a conversation, not a game to build.
     // One reply at a time (1.15.8): messages that arrive while the director is answering are answered together next,
