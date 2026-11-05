@@ -236,7 +236,7 @@ export class Core {
     this.providers = new ProviderRegistry(this.global);
     const providers = opts.providers ?? [
       new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
-      new CodexProvider(),
+      new CodexProvider((tier) => this.providers.codexModels()[tier]),
     ];
     for (const p of providers) this.providers.register(p);
     this.usage = new UsageTracker(this.global, this.bus);
