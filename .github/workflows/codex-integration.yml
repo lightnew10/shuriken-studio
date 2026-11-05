@@ -34,4 +34,4 @@ jobs:
       - name: Bundle Electron app
         run: npm run build
       - name: Run Codex adapter tests
-        run: npx vitest run tests/codex-provider.test.ts tests/codex-fallback.test.ts
+        run: npx vitest run tests/codex-provider.test.ts tests/codex-fallback.test.ts tests/codex-models.test.ts
