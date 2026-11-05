@@ -290,6 +290,10 @@ export class CollaborationService {
     this.remoteTasks = [];
     this.remoteDirector = [];
     this.remoteRuns = [];
+    this.remoteActivity = [];
+    this.directorTyping = false;
+    this.recentGuestRequestTimes = [];
+    this.lastActivityAt.clear();
     this.requests = [];
     this.guestAccess = false;
     this.hostReceipts.clear();
