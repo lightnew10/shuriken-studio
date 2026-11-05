@@ -9,6 +9,7 @@ import { useCurrentProject, useOrchestrator } from '../lib/project';
 import { cx } from '../components/ui';
 import { openGameDialog } from '../components/open-game';
 import { ThemeSwitch } from '../components/theme-switch';
+import type { CollabHeaderStatus } from '@shared/collaboration';
 import { EMPTY_ROBLOX, RobloxChoiceFields, robloxChoice, robloxSummary, saveProjectKey, type RobloxDraft } from '../components/roblox-choice';
 import type { Suggestion } from '@shared/suggestions';
 
@@ -71,6 +72,7 @@ export function StartPage() {
 
   // A project still open in this window ("New game" from it) whose agents are working: starting here stops them, so ask.
   const current = useCurrentProject();
+  const collab = useRpc<CollabHeaderStatus>('collaboration.header', undefined, ['collaboration.changed']);
   const orch = useOrchestrator(!!current.data);
   const working = current.data ? (orch.data?.activeRuns ?? 0) : 0;
   const [asking, setAsking] = useState(false);
@@ -117,6 +119,15 @@ export function StartPage() {
       <FlowBackground className="absolute inset-0" />
       {/* Draggable top area (the Projects menu is at the far left of the bar above), settings at right. */}
       <div className="drag overlay-pad absolute inset-x-0 top-0 z-20 flex h-14 items-center justify-end gap-3 pl-4">
+        {collab.data?.role && (
+          <button onClick={() => navigate('collaboration')}
+            title="Open the shared project and session participants"
+            className="no-drag inline-flex h-9 items-center gap-2 rounded-lg bg-black/25 px-3 text-[11.5px] text-white/80 ring-1 ring-white/12 backdrop-blur-md hover:bg-white/10">
+            <span className={cx('h-1.5 w-1.5 rounded-full',
+              collab.data.connection === 'connected' && (collab.data.role === 'host' || collab.data.hostOnline) ? 'bg-ok' : 'bg-warn')} />
+            <Users size={13} /> Collaboration · {collab.data.peers.length}
+          </button>
+        )}
         <ThemeSwitch className="rounded-full bg-black/20 px-1.5 py-1 ring-1 ring-white/10 backdrop-blur-md" />
         <button
           onClick={() => navigate('settings')}
