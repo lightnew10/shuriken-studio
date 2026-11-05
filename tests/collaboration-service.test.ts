@@ -104,7 +104,7 @@ describe('CollaborationService (no AI account sharing)', () => {
     const hello = sockets[0]!.sent.find((p) => p.type === 'hello')!;
     expect(hello.secret).toBe('b'.repeat(64));
     expect(hello.joinSecret).toBeUndefined();
-    expect(sockets[0]!.sent.find((p) => p.type === 'payload' && p.data.kind === 'sync-request')).toBeDefined();
+    expect(sockets[0]!.sent.find((p) => p.type === 'payload' && (p.data as { kind?: string }).kind === 'sync-request')).toBeDefined();
     manager.leave();
   });
 
