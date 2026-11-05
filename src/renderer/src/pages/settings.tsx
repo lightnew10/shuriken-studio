@@ -30,6 +30,21 @@ interface Account {
   eligible?: boolean;
   usage: { windows: Record<string, { status: string; utilization: number | null; resetsAt: number | null }>; blocked: boolean; blockedUntil: number | null; runsToday: number };
 }
+interface ProvidersInfo {
+  default: string;
+  roles: Record<string, string>;
+  providers: Array<{ id: string; name: string }>;
+  roleOptions?: Array<{ id: string; name: string }>;
+}
+
+interface CodexStatus {
+  installed: boolean;
+  version: string | null;
+  detail: string;
+  signedIn: boolean;
+  authDetail: string | null;
+}
+
 interface AccountsInfo {
   accounts: Account[];
   activeId: string | null;
@@ -41,6 +56,7 @@ interface AccountsInfo {
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'accounts', label: 'Claude accounts' },
+  { id: 'providers', label: 'AI providers' },
   { id: 'agents', label: 'Agents' },
   { id: 'storefront', label: 'Storefront' },
   { id: 'roblox', label: 'Roblox & Studio' },
@@ -75,6 +91,7 @@ export function SettingsPage({ section }: { section?: string }) {
           <div className="mx-auto max-w-3xl px-8 py-8">
             {active === 'appearance' && <AppearanceSection />}
             {active === 'accounts' && <AccountsSection />}
+            {active === 'providers' && <ProvidersSection />}
             {active === 'agents' && <AgentsSection />}
             {active === 'storefront' && <StorefrontSection />}
             {active === 'roblox' && <RobloxSection />}
@@ -227,8 +244,125 @@ function AccountsSection() {
   );
 }
 
+
+/**
+ * Provider selection is intentionally manual in V1. Shuriken's orchestration already routes
+ * roles through ProviderRegistry; changing a choice affects only future runs.
+ */
+function ProvidersSection() {
+  const info = useRpc<ProvidersInfo>('providers.assignments');
+  const codex = useRpc<CodexStatus>('providers.codex.status');
+  const [signing, setSigning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const select = async (defaultId: string, roles: Record<string, string>) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await rpc('providers.setAssignments', { default: defaultId, roles });
+      info.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const ready = codex.data?.installed && codex.data?.signedIn;
+  const roles = info.data?.roleOptions ?? [];
+  const selected = info.data?.default ?? 'claude';
+  return (
+    <>
+      <Section title="Codex (ChatGPT)" hint="Optional Codex CLI login. Your ChatGPT subscription is used through the official Codex CLI, not through an OpenAI API key. Claude is unchanged.">
+        <div className="card space-y-3 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="text-[13px] font-medium text-text">
+                {codex.data?.installed ? 'Codex CLI ' + (codex.data.version ?? '') : 'Codex CLI not detected'}
+              </div>
+              <div className="mt-1 text-[12px] text-dim">
+                {codex.data?.signedIn ? 'Signed in to Codex.' : (codex.data?.authDetail ?? codex.data?.detail ?? 'Checking the local Codex installation…')}
+              </div>
+            </div>
+            {ready && <Pill tone="ok">Ready</Pill>}
+            <Button size="sm" kind="ghost" icon={<RefreshCw size={13} />} onClick={() => codex.reload()}>Refresh</Button>
+            {codex.data?.installed && (
+              <Button size="sm" icon={<LogIn size={13} />} onClick={() => setSigning(true)}>
+                {codex.data.signedIn ? 'Sign in again' : 'Sign in with ChatGPT'}
+              </Button>
+            )}
+          </div>
+          {!codex.data?.installed && (
+            <p className="text-[12px] text-faint">
+              Install the official CLI with npm install -g @openai/codex, then restart Shuriken and sign in.
+            </p>
+          )}
+        </div>
+      </Section>
+      <Section title="Agent provider" hint="Choose which subscription future agents use. Running tasks are not changed. Role overrides are optional.">
+        <div className="card space-y-4 px-4 py-4">
+          <Field label="Default agent provider">
+            <select
+              className={inputClass}
+              value={selected}
+              disabled={saving || !info.data}
+              onChange={(e) => void select(e.target.value, info.data?.roles ?? {})}
+            >
+              {(info.data?.providers ?? []).map((p) => (
+                <option key={p.id} value={p.id} disabled={p.id === 'codex' && !ready}>{p.name}</option>
+              ))}
+            </select>
+          </Field>
+          <details className="text-[13px] text-dim">
+            <summary className="cursor-pointer select-none text-text">Agent-specific provider overrides</summary>
+            <div className="mt-3 space-y-2">
+              {roles.map((role) => (
+                <div key={role.id} className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1">{role.name}</span>
+                  <select
+                    className={cx(inputClass, 'max-w-[220px]')}
+                    value={info.data?.roles[role.id] ?? selected}
+                    disabled={saving}
+                    onChange={(e) => {
+                      const next = { ...(info.data?.roles ?? {}) };
+                      if (e.target.value === selected) delete next[role.id];
+                      else next[role.id] = e.target.value;
+                      void select(selected, next);
+                    }}
+                  >
+                    {(info.data?.providers ?? []).map((p) => (
+                      <option key={p.id} value={p.id} disabled={p.id === 'codex' && !ready}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </details>
+          <p className="text-[12px] text-warn">
+            Experimental: Codex exec runs in a workspace-write sandbox. The per-tool Shuriken
+            approval dialog is not yet connected to Codex CLI commands. Test on a copy of your
+            Roblox project, and do not enable Codex for autonomous production runs yet.
+            Automatic switching between Claude and Codex is not implemented in this version.
+          </p>
+          <ErrorNote error={error} />
+        </div>
+      </Section>
+      {signing && (
+        <SignInModal
+          provider="codex"
+          account={{
+            id: 'codex:pc', label: 'Codex (ChatGPT)', email: null, plan: null,
+            signedIn: !!codex.data?.signedIn, checkedAt: null,
+            usage: { windows: {}, blocked: false, blockedUntil: null, runsToday: 0 },
+          }}
+          onClose={() => { setSigning(false); codex.reload(); }}
+        />
+      )}
+    </>
+  );
+}
+
 /** Claude Code's own login, running in a real terminal, for one account profile. */
-function SignInModal({ account, onClose }: { account: Account; onClose: () => void }) {
+function SignInModal({ account, onClose, provider = 'claude' }: { account: Account; onClose: () => void; provider?: 'claude' | 'codex' }) {
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
   const sessionId = useRef<string | null>(null);
@@ -250,7 +384,7 @@ function SignInModal({ account, onClose }: { account: Account; onClose: () => vo
     fit.fit();
     term.current = t;
     const onData = t.onData((d) => sessionId.current && void rpc('terminal.write', { id: sessionId.current, data: d }));
-    void rpc<{ id: string }>('accounts.signIn', { id: account.id, cols: t.cols, rows: t.rows })
+    void rpc<{ id: string }>(provider === 'codex' ? 'providers.codex.signIn' : 'accounts.signIn', provider === 'codex' ? { cols: t.cols, rows: t.rows } : { id: account.id, cols: t.cols, rows: t.rows })
       .then((s) => {
         sessionId.current = s.id;
         t.focus();
@@ -261,7 +395,7 @@ function SignInModal({ account, onClose }: { account: Account; onClose: () => vo
       if (sessionId.current) void rpc('terminal.kill', { id: sessionId.current }).catch(() => undefined);
       t.dispose();
     };
-  }, [account.id]);
+  }, [account.id, provider]);
 
   useCoreEvent(['terminal.data', 'terminal.exit'], (channel, payload) => {
     const p = payload as { id: string; data?: string };
@@ -273,7 +407,10 @@ function SignInModal({ account, onClose }: { account: Account; onClose: () => vo
   const check = async () => {
     setChecking(true);
     try {
-      setResult(await rpc<Account>('accounts.refresh', { id: account.id }));
+      if (provider === 'codex') {
+        const status = await rpc<CodexStatus>('providers.codex.status');
+        setResult({ ...account, signedIn: status.signedIn });
+      } else setResult(await rpc<Account>('accounts.refresh', { id: account.id }));
     } finally {
       setChecking(false);
     }
@@ -282,7 +419,9 @@ function SignInModal({ account, onClose }: { account: Account; onClose: () => vo
   return (
     <Modal open onClose={onClose} title={`Sign in: ${account.label}`} width={860}>
       <p className="mb-3 text-[13px] leading-relaxed text-dim">
-        This is Claude Code's own sign-in. Choose <b className="text-text">Claude account with subscription</b>, finish in the browser that opens, then press <b className="text-text">Check sign-in</b>. Credentials stay in this account's private folder on your PC.
+        {provider === 'codex'
+          ? 'This is the official Codex CLI login. Choose your ChatGPT subscription in the browser that opens, then press Check sign-in. Credentials remain with Codex on this PC.'
+          : <>This is Claude Code's own sign-in. Choose <b className="text-text">Claude account with subscription</b>, finish in the browser that opens, then press <b className="text-text">Check sign-in</b>. Credentials stay in this account's private folder on your PC.</>}
       </p>
       <div className="h-[380px] overflow-hidden rounded-xl bg-code ring-1 ring-line" ref={host} />
       <ErrorNote error={error} />
