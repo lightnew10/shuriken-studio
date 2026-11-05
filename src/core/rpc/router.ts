@@ -426,8 +426,6 @@ export function createRouter(core: Core): Record<string, Handler> {
     'health.run': ({ id, deep }: { id?: string; deep?: boolean }) => (id ? core.health.run(id, deep ?? false) : core.health.runAll(deep ?? false)),
     'health.history': ({ id, limit }: { id: string; limit?: number }) => core.health.history(id, limit),
     'capabilities.list': ({ integration }: { integration?: string } = {}) => core.capabilities.list(integration),
-    'providers.assignments': () => core.providers.assignments(),
-    'providers.setAssignments': (a: Parameters<typeof core.providers.setAssignments>[0]) => core.providers.setAssignments(a),
     'usage.snapshot': () => core.providers.list().map((x) => core.usage.snapshot(x.id)),
     'usage.clearBlock': ({ providerId }: { providerId: string }) => core.usage.clearBlock(providerId),
 
