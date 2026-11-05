@@ -23,7 +23,7 @@ to avoid accidental pay-per-token billing. No OpenAI API key is created by Shuri
 1. Check out branch **feature/codex-integration**.
 2. Run **npm ci** and **npm run typecheck**.
 3. Run **npm run dev**, or build the Windows installer with **npm run dist**.
-4. Open **Settings → AI providers**.
+4. Open **Settings → AI accounts**. The Codex login appears directly below your Claude accounts.
 5. Click **Refresh**. Codex must be detected and signed in.
 6. If necessary, click **Sign in with ChatGPT** and complete the official login.
 7. Select **Codex (ChatGPT)** as the default provider or override individual agent roles.
