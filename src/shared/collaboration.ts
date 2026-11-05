@@ -74,7 +74,7 @@ export type CollabPayload =
   | { kind: 'chat'; message: CollabChatEntry }
   | { kind: 'sync-request' }
   | { kind: 'history'; messages: CollabChatEntry[] }
-  | { kind: 'project-status'; name: string; projectId: string | null; taskCount: number }
+  | { kind: 'project-status'; name: string; projectId: string | null; taskCount: number; guestRequestsEnabled?: boolean }
   | { kind: 'task-batch'; tasks: CollabTaskSummary[]; reset?: boolean }
   | { kind: 'task-remove'; id: string }
   | { kind: 'director-batch'; messages: CollabDirectorSummary[]; reset?: boolean }
@@ -229,7 +229,8 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
   if (value.kind === 'project-status' && typeof value.name === 'string' && value.name.length <= 150 &&
       (value.projectId === null || typeof value.projectId === 'string' && value.projectId.length <= 100) &&
       typeof value.taskCount === 'number' && Number.isSafeInteger(value.taskCount) && value.taskCount >= 0)
-    return { kind: 'project-status', name: value.name, projectId: value.projectId as string | null, taskCount: value.taskCount };
+    return { kind: 'project-status', name: value.name, projectId: value.projectId as string | null, taskCount: value.taskCount,
+      guestRequestsEnabled: value.guestRequestsEnabled === true };
   return null;
 }
 export function truncateCollabHistory(messages: CollabChatEntry[]): CollabChatEntry[] {
