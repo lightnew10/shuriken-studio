@@ -454,7 +454,14 @@ export function createRouter(core: Core): Record<string, Handler> {
     },
 
     // ─── Terminal ───────────────────────────────────────────────────────────
-    // ─── AI providers ─────────────────────────────────────────────────────────
+    // ─── Collaboration (C1: relay, presence and human chat only) ──────────────
+    'collaboration.status': () => core.collaboration.status(),
+    'collaboration.configure': (input: { relay: string; name: string }) => core.collaboration.configure(input),
+    'collaboration.host': () => core.collaboration.host(),
+    'collaboration.join': ({ invitation }: { invitation: string }) => core.collaboration.join(invitation),
+    'collaboration.leave': () => core.collaboration.leave(),
+    'collaboration.sendChat': ({ text }: { text: string }) => core.collaboration.sendChat(text),
+        // ─── AI providers ─────────────────────────────────────────────────────────
     'providers.assignments': () => ({
       ...core.providers.assignments(),
       codexFallbackEnabled: core.providers.codexFallbackEnabled(),
