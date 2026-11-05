@@ -14,6 +14,7 @@ import { studioLinkLine, type StudioLinkInfo } from '../lib/studio-link';
 import { useCurrentProject } from '../lib/project';
 import { calmDashboardNow, setCalmDashboard, themeColor, useCalmDashboard } from '../lib/appearance';
 import { ThemeSwitch } from '../components/theme-switch';
+import { CollaborationSettings } from './collaboration-settings';
 import { StepSlider } from '../components/step-slider';
 import { ALWAYS_ASKS, PERMISSION_MODES, PROJECT_MODE_CHOICES, appMode, projectChoice, projectModeNote, projectSetting } from '../lib/permission-modes';
 
@@ -64,6 +65,7 @@ interface AccountsInfo {
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'accounts', label: 'AI accounts' },
+  { id: 'collaboration', label: 'Collaboration' },
   { id: 'agents', label: 'Agents' },
   { id: 'storefront', label: 'Storefront' },
   { id: 'roblox', label: 'Roblox & Studio' },
@@ -98,6 +100,7 @@ export function SettingsPage({ section }: { section?: string }) {
           <div className="mx-auto max-w-3xl px-8 py-8">
             {active === 'appearance' && <AppearanceSection />}
             {active === 'accounts' && <AccountsSection />}
+            {active === 'collaboration' && <CollaborationSettings />}
             {active === 'agents' && <AgentsSection />}
             {active === 'storefront' && <StorefrontSection />}
             {active === 'roblox' && <RobloxSection />}
