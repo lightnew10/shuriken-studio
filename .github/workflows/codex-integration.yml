@@ -53,3 +53,6 @@ jobs:
       - name: Bundle Cloudflare relay without deploying
         working-directory: collaboration/relay
         run: npx wrangler deploy --dry-run --outdir ../../build/collaboration-relay
+      - name: Smoke test real Cloudflare Worker using two WebSockets
+        working-directory: collaboration/relay
+        run: npm run smoke
