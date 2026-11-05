@@ -5,6 +5,8 @@ import { rpc, useRpc } from '../lib/rpc';
 
 type Peer = { id: string; name: string; role: 'host' | 'guest' };
 type Message = { id: string; from: string; sender: string; text: string; at: string };
+type RemoteTask = { id: string; title: string; role: string; status: string; updatedAt: string };
+type RemoteDirectorMessage = { id: string; role: 'user' | 'director' | 'system'; kind: string; text: string; createdAt: string };
 interface CollaborationStatus {
   connection: 'offline' | 'connecting' | 'connected' | 'reconnecting';
   role: 'host' | 'guest' | null;
@@ -16,6 +18,8 @@ interface CollaborationStatus {
   messages: Message[];
   reconnectSeconds: number | null;
   remoteProject: { name: string; projectId: string | null; taskCount: number } | null;
+  remoteTasks: RemoteTask[];
+  remoteDirector: RemoteDirectorMessage[];
   hostOnline: boolean;
   error: string | null;
   remoteAgentsEnabled: false;
@@ -180,9 +184,40 @@ export function CollaborationSettings() {
           </div>
         </Section>
       )}
+      {session.data?.role === 'guest' && (
+        <Section title="Host project activity (read-only)" description="The host shares its visible Director messages and task statuses. You cannot modify the host's game or execute remote agents in this milestone.">
+          <div className="card space-y-4 px-4 py-4">
+            <div>
+              <div className="mb-2 text-[12px] font-semibold text-text">Recent Director messages</div>
+              <div className="max-h-60 space-y-2 overflow-y-auto">
+                {(session.data.remoteDirector ?? []).slice(-30).map((msg) => (
+                  <div key={msg.id} className="rounded-md bg-surface2 px-3 py-2">
+                    <div className="text-[11px] font-semibold text-accent2">{msg.role === 'user' ? 'Host' : msg.role}</div>
+                    <div className="mt-1 whitespace-pre-wrap break-words text-[12.5px] text-dim">{msg.text}</div>
+                  </div>
+                ))}
+                {!session.data.remoteDirector?.length && <p className="text-[12px] text-faint">Waiting for the host's project snapshot.</p>}
+              </div>
+            </div>
+            <div className="border-t border-line pt-3">
+              <div className="mb-2 text-[12px] font-semibold text-text">Shared task statuses ({session.data.remoteTasks?.length ?? 0} shown)</div>
+              <div className="max-h-60 space-y-1 overflow-y-auto">
+                {(session.data.remoteTasks ?? []).slice(-40).map((task) => (
+                  <div key={task.id} className="flex items-center gap-2 border-b border-line/30 py-1.5 text-[12px]">
+                    <span className="min-w-0 flex-1 truncate text-dim" title={task.title}>{task.title}</span>
+                    <span className="shrink-0 text-faint">{task.role}</span>
+                    <span className="shrink-0 text-accent2">{task.status}</span>
+                  </div>
+                ))}
+                {!session.data.remoteTasks?.length && <p className="text-[12px] text-faint">No task state received yet.</p>}
+              </div>
+            </div>
+          </div>
+        </Section>
+      )}
       <Section title="Distributed AI and shared project" description="Planned next: shared Director history, host-approved file patches, guest workers, owner-controlled Claude/Codex execution and guarded quota routing. None of these permissions is granted by joining a C1 session.">
         <div className="card px-4 py-4 text-[12px] leading-relaxed text-dim">
-          Each ChatGPT or Claude sign-in stays on its owner's PC. The host never receives account tokens. Automatic delegation of personal subscriptions to other users is not enabled; provider account terms and explicit consent must be addressed first.
+          Invitations permit guests to read shared human chat and read-only Director/task updates; do not include secrets in that conversation. Each ChatGPT or Claude sign-in stays on its owner's PC. The host never receives account tokens. Automatic delegation of personal subscriptions to other users is not enabled; provider account terms and explicit consent must be addressed first.
           <p className="mt-3 text-faint">Deployment instructions: collaboration/relay/README.md · Plan: docs/COLLABORATION_PLAN.md</p>
         </div>
       </Section>
