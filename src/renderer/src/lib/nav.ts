@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 /** The app is two places — the start page and the dashboard — plus detail pages reached from dashboard containers. */
-export type Page = 'start' | 'dashboard' | 'viewer' | 'agents' | 'models' | 'audio' | 'animation' | 'ui' | 'kiln' | 'storefront' | 'references' | 'settings';
+export type Page = 'start' | 'dashboard' | 'viewer' | 'agents' | 'models' | 'audio' | 'animation' | 'ui' | 'kiln' | 'storefront' | 'references' | 'settings' | 'collaboration';
 
 export interface Route {
   page: Page;
