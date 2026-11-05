@@ -457,7 +457,7 @@ export function createRouter(core: Core): Record<string, Handler> {
     'providers.assignments': () => ({
       ...core.providers.assignments(),
       providers: core.providers.list().map((provider) => ({ id: provider.id, name: provider.displayName })),
-      roles: Object.values(ROLES).map((role) => ({ id: role.id, name: role.name })),
+      roleOptions: Object.values(ROLES).map((role) => ({ id: role.id, name: role.name })),
     }),
     'providers.setAssignments': ({ default: selected, roles }: { default: string; roles: Record<string, string> }) => {
       const allowedRoles = new Set(Object.keys(ROLES));
