@@ -6,15 +6,16 @@
 - Internet invitations via a host-owned relay (Cloudflare Worker + Durable Object), not a public socket into the host PC.
 - Relay carries events, not AI credentials. Host retains authoritative chat/history/tasks locally.
 - Session permissions: host, invited guest; guests may leave immediately; network loss has a **10-minute reconnect grace**.
-- Claude/Codex run with the credentials installed on the account owner's own PC. **Never copy OAuth tokens or CODEX_HOME/Claude profiles to the host or relay.**
-- Fast/Balanced/Deep provider selection remains local to the executing participant.
-- Shared capacity requested as an opt-in feature. **Do not auto-delegate personal ChatGPT/Claude subscriptions to other people until provider terms and controls permit it.** Individual owners can execute their own assignments in the shared project. Provider-specific pool policies need review.
+- **User's selected target: Option B (5 Nov 2026).** All project-changing agents, including guest-attributed Codex/Claude jobs, should **execute on the host PC** alongside the host's sole Roblox Studio. The owner of each AI quota remains identifiable, and guest controls and results synchronize in real time.
+- **Critical provider limitation / implementation gate:** Consumer ChatGPT/Claude subscription authentication does not currently establish a documented compliant delegated-login mechanism for another user's host to consume that subscription. In particular, OpenAI's individual account terms prohibit making the account available to another person. **Do not implement guest-to-host OAuth/session/token copying, shared CODEX_HOME/Claude profiles or quota pooling by evading these restrictions.** Only enable true option B with a provider-supported delegated identity or other explicitly authorized, independently billed integration. An API key would be a separate API billing model, not automatically a user's ChatGPT subscription quota.
+- Fast/Balanced/Deep model selection applies to the execution runtime on the host. Track **who requested** a task separately from **which authorized provider identity is charged**; no impersonation or automatic use of someone else's personal subscription.
+- Shared AI capacity is an **opt-in product goal**, contingent on the provider explicitly allowing the authorization model. The UI must explain that guest-owned personal subscription quotas are *not presently shareable through option B* and must not show them as available host-side capacity until the provider integration has been verified.
 - **Guest task requests are automatic within the host's configured collaboration permissions.** An authenticated guest message enters the host Director's ordinary execution pipeline, with explicit author and session metadata. The host must not be interrupted for every Luau, GUI, VFX, building or asset edit. Apply existing verification, sandboxing, undo/checkpoint and scope limits regardless of initiator.
 - **Sensitive operations still require authorization:** publishing, deleting substantial content, modifying secrets/security, account changes and other high-risk/destructive actions. The host sets permissions once in Settings; an exceptional operation requires explicit approval, not a blanket approval for every task.
 - **Luau/UI/VFX/world modifications are produced and applied on the host PC by default**, not as guest-authored file patches awaiting acceptance. Only the host talks to Roblox Studio/MCP/plugin and writes project files.
 - **3D generated on the host** follows the host's existing local creation/import pipeline (no network asset transfer needed). When a separately authorized guest-side worker actually generates a 3D asset, transfer its model and textures with validated sizes/hashes and optional review before host import.
 - **Cloudflare is a relay:** client requests, event streams, task state, chat, Studio operation outcomes and replay metadata. Heavy media travels on a separate explicit file transport only when generated outside the host.
-- **AI execution location is distinct from project mutation location:** guests' own Claude/Codex accounts stay on their PCs unless a separate compliant provider integration is expressly designed. Under no circumstances does 'run changes on the host' imply copying guests' OAuth sessions to the host.
+- **Execution placement is host-only as the product goal**; this does **not** grant the host the right to impersonate an invited user's ChatGPT/Claude login. Guest accounts remain private and **must not be migrated to the host**. Host-local execution uses only identities that are permitted for that machine/workflow. Mark guest-owned subscription-backed execution as blocked until an authorized delegation mechanism exists.
 
 ## Implementation status
 
@@ -55,12 +56,13 @@
 - [ ] Guests see near-real-time code/tool effects as **structured state and outcomes** without receiving sensitive local file paths or credentials. Consider lightweight Studio preview/state and task log sync; reconcile late events with an authoritative snapshot.
 - [ ] Multi-PC integration tests: simultaneous guest prompts, safe Luau/UI/VFX edits, 3D host generation, sensitive-action approval, reconnect, replay, out-of-order results, rollback and invalid remote commands.
 
-### C4 — Distributed agents, quotas and permissions
-- [ ] Signed task envelopes (owner, originator, role, provider, model tier, budget, immutable task snapshot).
-- [ ] Guest worker executes only on its own device; no credential transfer.
-- [ ] Owner-controlled consent, per-provider allowlists, limits, immediate revocation, guest-host permission separation.
-- [ ] Hard boundaries for personal ChatGPT/Claude accounts until provider terms permit cross-user automatic delegation.
-- [ ] Routing on connection, owner, eligibility, quota health and model; test exhausted/unknown quotas and fallback.
+### C4 — Host-executed AI, quota attribution and permissions (option B)
+- [ ] Signed task envelopes distinguish initiating participant, executing host process, provider identity, permitted model tier and execution budget.
+- [ ] **All agent processes and Roblox/file mutations run on the host** when a compliant, permitted provider identity is available. The guest is a remote Shuriken UI/client; no guest-side AI runner is required by option B.
+- [ ] Do not copy guest OAuth sessions, local CLI credential folders, browser cookies or personal subscription login state onto the host; require the provider's **documented authorized delegation / team identity** before claiming guest-subscription usage on host.
+- [ ] Maintain per-identity authorization, usage tracking, rate-limit handling, explicit opt-in and immediate revocation for any future provider-supported delegation. Consent alone does not override provider contract restrictions.
+- [ ] Until such integration is documented and supported, only use the host's own authorized providers to perform host-local work. **Do not silently charge the guest's personal ChatGPT/Claude quota.** Mark unavailable owner identities clearly.
+- [ ] Test quota attribution, concurrent accounts, profile isolation, revoked identities, unknown quotas, process crashes, reconnect and no duplicate charge or accepted result.
 - [ ] Never duplicate or migrate running provider sessions; lease/sequence ensures exactly one accepted result.
 
 ### C5 — Production hardening and deployment
