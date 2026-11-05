@@ -271,6 +271,11 @@ export class Core {
       onGuestRequest: (sender, id, text) => {
         if (!this.project) throw new Error('The host must open a project before receiving collaborator requests.');
         if (this.opts.safeMode) throw new Error('Guest work is disabled in safe mode.');
+        // Audit the source before dispatch; collaborator requests may consume host AI quota.
+        this.project.audit.event({
+          kind: 'collaboration.request', title: 'Guest request received from ' + sender.name.slice(0, 48),
+          detail: { requestId: id, peerId: sender.id },
+        });
         // A trusted collaborator enters the same local Director pipeline as the host.
         // Existing host project permission policies still govern local tool execution.
         this.director.send(text, { sender: sender.name, peerId: sender.id, requestId: id });
