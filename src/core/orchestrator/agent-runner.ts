@@ -345,8 +345,12 @@ export class AgentRunner {
               pendingTools.set(ev.id, { auditId, tool: ev.tool, input: ev.input, started: Date.now() });
             }
             if (ev.toolClass === 'edit_files') {
-              const fp = (ev.input as { file_path?: string; notebook_path?: string } | null)?.file_path ?? (ev.input as { notebook_path?: string } | null)?.notebook_path;
+              const input = ev.input as { file_path?: string; notebook_path?: string; changes?: Array<{ path?: string }> } | null;
+              const fp = input?.file_path ?? input?.notebook_path;
               if (fp) editedFiles.add(fp);
+              // Codex CLI emits one file_change item with all paths, rather than Claude's
+              // individual Edit/Write tool calls. Preserve those paths for sync and audit.
+              for (const change of input?.changes ?? []) if (typeof change.path === 'string') editedFiles.add(change.path);
             }
             break;
           }
