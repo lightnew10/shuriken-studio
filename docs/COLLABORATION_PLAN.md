@@ -23,9 +23,11 @@
 
 **C1 implemented in branch (not deployed):** Settings tab, host- or guest-initiated WSS, private invitation links, Cloudflare Durable Object authentication, human chat, peer presence, compact themed header indicator (connection state, participants, host/guest role and shortcut to Settings), 10-minute reconnect, immediate leave, bounded in-memory history and CI tests. The Worker is tested in a local Cloudflare runtime, but still requires a deployment to the host's Cloudflare account and a two-PC packaged-app test.
 
-**C2 partially implemented:** guests receive the host's project title, recent visible Director messages and task status updates **read-only**. Dashboard Director has a shortcut to session chat. Full authoritative persistence and true remote editing are still pending.
+**C2 substantially implemented in the branch, but not yet proven on two physical PCs:** authenticated guests can submit ordinary prompts to the host Director after the host enables a single trust permission; requests are deduplicated and acknowledged, chat authors are identified, and Director/agent/task state is mirrored near-real-time. Guests now have a collaboration workspace even without a local Roblox project, with a visible connection indicator across the app.
 
-**C3–C5 NOT IMPLEMENTED:** guest chat messages are not yet submitted into the host Director for automatic execution; the host's tools do not currently run tasks on behalf of guests; complete bidirectional task/result synchronization, remote provider execution and optional external asset transfers are pending. The host-only execution boundary is a design decision, **not** a claim that the new workflow is already operational. Do not treat the feature as production-ready or enable remote AI actions without the listed security reviews.
+**C3 host-local path integrated, not yet verified in Roblox Studio with two PCs:** authorized guest requests reuse the host's existing Director, agents, code sync and Roblox tools; no second writable workspace and no per-edit acceptance step. The application trusts guests explicitly enabled by the host. **Per-actor restrictions for privileged/destructive tools remain incomplete**: an authorized guest may exercise the host's existing permission mode. Do not enable guest execution for untrusted invitees.
+
+**C4–C5 NOT IMPLEMENTED:** guest-provided ChatGPT/Claude subscriptions, API-key provisioning to host workers, per-account quota pooling, end-to-end encryption, individual invitation revocation, durable request ledgers, optional off-host asset transport and production-grade abuse controls are still pending. No Cloudflare deployment or packaged two-PC Roblox Studio end-to-end test has been performed.
 
 ## Phases, dependencies, and acceptance criteria
 
@@ -40,18 +42,18 @@
 - [x] Clear UI that session link joining is in-app (not a hosted project page) and relay deployment is an explicit separate action.
 
 ### C2 — Real-time host-authoritative state and Director
-- [ ] Authenticated guest request travels to the **host Director** with user ID, room ID, request ID and permitted scope; the host's normal orchestrator starts the work without a per-edit approval prompt.
+- [x] Authenticated guest request travels to the host Director with relay-attested participant ID, request ID and session identity; a host-wide trusted-guest switch enables ordinary requests without per-edit approval. **Per-action role scopes remain TODO.**
 - [ ] The host writes chat, tasks, plans and agent runs to its own project; the guest receives the same conversation updates and streamed progress (including partial responses, status, errors, cancellations and outcomes).
 - [ ] Host-owned ordered event sequence, acknowledgements, idempotency and snapshot/replay after an unexpected disconnect of up to 10 minutes.
-- [ ] Clear distinction in the shared timeline between a human's message and a Director/agent reply, with the initiating participant's identity.
+- [x] Host chat persists collaborator author metadata, and guest/host UI distinguishes initiating participants from Director replies.
 - [ ] Guest can request and see task pause/resume only where authorized; these actions are executed by the host core.
-- [ ] Host-side persisted event log, deduplication, crash recovery and two-Core tests with dropped events and late reconnect. (Host Director/task snapshots are already mirrored read-only; guest submission is not implemented.)
+- [ ] Host-side persisted event log, deduplication, crash recovery and two-Core tests with dropped events and late reconnect. **Partial:** host stores chat and task state, request dedup is bounded in memory, synthetic two-core reconnect tests cover network loss. Host process restart recovery and durable operation replay remain.
 
 ### C3 — Host-local automatic execution, verification and optional 3D transfers
-- [ ] **Default pipeline:** guest asks through Shuriken → the relay authenticates and forwards the request → host Director creates tasks → host agents/tools edit the host files and its Roblox Studio → results stream to all participants. No separate guest-built Luau/UI/VFX patch approval step.
+- [ ] **Default pipeline:** guest → authenticated relay → host Director → host agents/tools → host Roblox Studio → shared results. **Implemented in code with task/run/Director event synchronization; live two-PC Studio integration is still untested.** No separate guest-built Luau/UI/VFX patch approval step.
 - [ ] Host collaboration settings define permitted actions by role (e.g., normal scripts, GUI, VFX, terrain, model generation); guests cannot bypass host approvals or invoke arbitrary host MCP/terminal commands.
 - [ ] Only the host's existing code sync, Roblox Studio adapter, lock and verification mechanisms perform game mutations. Enforce actor identity and allowlist **in the host core**, not just the client UI or relay.
-- [ ] For ordinary permitted changes, **no host confirmation prompt**. Keep checks, checkpoints, version conflicts, idempotent operation IDs and rollback in the host runtime.
+- [ ] For ordinary permitted changes, **no host confirmation prompt**. **Implemented:** one host trust switch, existing host agent execution and request ID dedup. **Remaining:** per-guest action policies, crash-durable idempotency, independent rollback integration tests.
 - [ ] For destructive or privileged operations (publish, secret/permission changes, bulk delete, external integrations), request host approval or deny according to collaboration policy.
 - [ ] 3D generation, textures and local conversion run on the host when invoked as a normal collaborative task; the existing host-controlled import pipeline handles the output. Do not add unnecessary asset sharing when the host already owns the files.
 - [ ] Only if a separately authorized remote AI/3D worker produces files outside the host: transfer a validated manifest, checksums and bounded asset chunks; host accepts/rejects untrusted external imports according to the host's policy. No remote process directly imports to Roblox Studio.
@@ -99,3 +101,11 @@ The relay is optional and explicitly deployed by the user. With no relay URL con
 - SIWC accounts, consent, token renewal: https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions
 - Anthropic Claude Code legal/compliance: https://code.claude.com/docs/en/legal-and-compliance
 - OpenAI EU terms/account sharing policy: https://openai.com/fr-FR/policies/eu-terms-of-use/
+
+## Verification boundaries (latest implementation)
+
+- **Automated tests:** Windows/Linux TypeScript and Electron bundle, protocol/unit suite, simulated two-Core flow including authenticated requests/receipts/reconnect, local Cloudflare Worker deployment dry-run and two-WebSocket relay smoke.
+- **Not tested yet:** two actual PCs, Windows installer sign-in, a production Cloudflare deployment, two simultaneous guest accounts, Roblox Studio connected to host under real work, 3D import handling, or guest-backed quota charging.
+- **Default guest request permission is off for each new host session.** Enabling it grants trusted guests access to the host Director's ordinary execution pipeline, which may consume the host's account. The existing tool policy still applies; a separate per-guest privileged-operation policy is planned.
+- **Network loss allows up to 10 minutes for reconnection; voluntary leave ends room access immediately.** Already accepted host-owned jobs are not currently cancelled automatically when the guest leaves.
+- **Transport uses TLS but not E2EE.** Never send secrets, private provider credentials or confidential source text through the collaboration session until the remaining security work is complete.
