@@ -203,6 +203,9 @@ function CollaborationHeader() {
           {!data.peers.length && <p className="px-2 py-2 text-[11px] text-faint">En attente de la connexion…</p>}
         </div>
         <div className="mx-2 border-t border-line" />
+        <button className={menuItem} onClick={() => { setOpen(false); navigate('collaboration'); }}>
+          <Users size={13} className="text-faint" /> Ouvrir l'espace partagé
+        </button>
         <button className={menuItem} onClick={() => { setOpen(false); navigate('settings', 'collaboration'); }}>
           <Settings2 size={13} className="text-faint" /> Gérer la collaboration
         </button>
