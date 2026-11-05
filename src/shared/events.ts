@@ -115,6 +115,8 @@ export interface CoreEventMap {
   /** A reference clip or picture was added, moved on in its analysis, or removed (core/references/). */
   'references.changed': { id?: string; status?: string };
   'project.changed': { projectId: string | null };
+  /** Collaboration session, participants, messages or connectivity changed. */
+  'collaboration.changed': Record<string, never>;
   /** New suggestion bubbles were written for a project's chat and docks. */
   'suggestions.changed': { projectId: string };
   /** The Storefront changed: its catalog, its copy or its pictures (storefront/storefront.ts). */
