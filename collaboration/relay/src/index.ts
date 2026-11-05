@@ -108,6 +108,8 @@ export class CollabRoom extends DurableObject<Env> {
       return;
     }
     if (msg.type !== 'payload') return void ws.close(1008, 'Invalid operation');
+    if (member.role === 'guest' && !this.members().some(({ info }) => info.role === 'host'))
+      return send(ws, { v: 1, type: 'error', reason: 'Host is offline; wait for reconnection.' });
     const data = parseCollabPayload(msg.data, member.role === 'host');
     if (!data) return send(ws, { v: 1, type: 'error', reason: 'Unauthorized or invalid event' });
     if (msg.to && (member.role !== 'host' || typeof msg.to !== 'string')) return void ws.close(1008, 'Only host may address peers');
