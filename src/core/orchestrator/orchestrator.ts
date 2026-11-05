@@ -229,6 +229,8 @@ export class Orchestrator {
   private starts = 0;
   /** Tasks the user explicitly asked to run now (honoured even in manual autonomy). */
   private readonly runNowQueue = new Set<string>();
+  /** A user requested Resume while the interrupted agent is still winding down. */
+  private readonly resumeAfterStop = new Set<string>();
   private readonly semaphore = new Semaphore(3);
   private unsubscribers: Array<() => void> = [];
 
@@ -609,10 +611,37 @@ export class Orchestrator {
     return t;
   }
 
+  /** Pause this one task without pausing the other agents or its parent objective. */
   pauseTask(taskId: string): Task {
     const p = this.requireProject();
+    const task = p.tasks.require(taskId);
+    if (task.kind === 'objective') throw new Error('Pause an individual agent task, not the whole objective.');
+    if (task.status === 'paused') return task;
+    if (!['ready', 'running', 'implemented', 'verifying', 'reviewing'].includes(task.status))
+      throw new Error('This task cannot be paused in its current state.');
+    this.resumeAfterStop.delete(taskId);
+    this.runNowQueue.delete(taskId);
+    // Immediately mark the task paused, so the scheduler cannot relaunch it.
+    // The abort is cooperative: an in-progress tool may finish its current action.
+    const paused = p.tasks.setStatus(taskId, 'paused', 'Paused individually by user', 'user');
     this.inflight.get(taskId)?.abort();
-    return p.tasks.setStatus(taskId, 'paused', 'Paused by user', 'user');
+    this.kick();
+    return paused;
+  }
+
+  /** Resuming just one task does not resume a globally paused project. */
+  resumeTask(taskId: string): Task {
+    const p = this.requireProject();
+    const task = p.tasks.require(taskId);
+    if (task.status !== 'paused') throw new Error('Only a paused task can be resumed.');
+    if (this.inflight.has(taskId)) {
+      // Do not start an overlapping run: wait for the original agent to stop first.
+      this.resumeAfterStop.add(taskId);
+      return task;
+    }
+    const ready = p.tasks.setStatus(taskId, 'ready', 'Resumed individually by user', 'user');
+    this.kick();
+    return ready;
   }
 
   /**
@@ -876,6 +905,9 @@ export class Orchestrator {
           })
           .finally(() => {
             this.inflight.delete(task.id);
+            if (this.resumeAfterStop.delete(task.id) && this.project === p && p.tasks.get(task.id)?.status === 'paused') {
+              p.tasks.setStatus(task.id, 'ready', 'Resumed individually after previous run stopped', 'user');
+            }
             this.parked.delete(task.id);
             this.slotted.delete(task.id);
             release();
@@ -1337,6 +1369,7 @@ export class Orchestrator {
       // A note its agent never read (no tool call after it) reaches the reviewer instead (see critique notes below).
       this.pendingNotes.delete(task.id);
       if (!this.checkCompletion(p, task, outcome, 'implement')) return;
+      if (signal.aborted) return this.interrupted(p, task);
       const out = outcome.structured as WorkOutput | null;
       if (!out) return this.handleFailure(p, task, 'implement', 'Agent returned no structured result', outcome.completion.resultText, outcome.run.id);
       work = out;
@@ -1425,6 +1458,9 @@ export class Orchestrator {
     if (reopened && !reproduced(p, task.id, reopened.at)) {
       return this.handleFailure(p, task, 'verify', NOT_REPRODUCED, `${reopenBrief(reopened.report)}\n\nNothing on this task shows the problem happening after it was reopened: no failing check and no evidence recorded with passed: false.`, runId);
     }
+
+    // A user may have paused the task while observations or snapshots were running.
+    if (signal.aborted || p.tasks.get(task.id)?.status === 'paused') return this.interrupted(p, task);
 
     // TEST.
     const checksFrom = nowIso();
@@ -1601,6 +1637,9 @@ export class Orchestrator {
   /** Returns false (and handles it) when the provider run did not complete successfully. */
   private checkCompletion(p: ProjectContext, task: Task, outcome: RunOutcome, stage: 'implement'): boolean {
     const c = outcome.completion;
+    // A pause requested while the provider was finishing takes precedence even
+    // if the provider returned a successful answer after the abort.
+    if (p.tasks.get(task.id)?.status === 'paused') return false;
     if (c.ok) {
       this.envBackoffMs = 0;
       this.lastEnvError = null;
