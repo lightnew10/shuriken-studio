@@ -22,6 +22,7 @@ export interface CollaborationStatus {
   selfId: string | null;
   messages: CollabChatEntry[];
   remoteProject: { name: string; projectId: string | null; taskCount: number } | null;
+  hostOnline: boolean;
   reconnectSeconds: number | null;
   error: string | null;
   /** Remote code execution and cross-user subscription pooling are not enabled in C1. */
@@ -65,6 +66,7 @@ export class CollaborationService {
       invitation: this.session?.role === 'host' ? this.session.invitation : null,
       peers: [...this.peers], selfId: this.selfId, messages: [...this.chat],
       remoteProject: this.remoteProject,
+      hostOnline: this.state === 'connected' && this.peers.some((peer) => peer.role === 'host'),
       reconnectSeconds: this.lostAt === null ? null : Math.max(0, Math.ceil((COLLAB_RECONNECT_MS - (Date.now() - this.lostAt)) / 1000)),
       error: this.lastError, remoteAgentsEnabled: false,
     };
@@ -131,6 +133,8 @@ export class CollaborationService {
   sendChat(input: string): CollabChatEntry {
     if (!this.session || this.state !== 'connected' || !this.selfId)
       throw new Error('Join a connected collaboration session before sending messages.');
+    if (this.session.role === 'guest' && !this.peers.some((peer) => peer.role === 'host'))
+      throw new Error('The host is offline. Wait for the host to reconnect before sending a message.');
     const message: CollabChatEntry = {
       id: randomUUID(), from: this.selfId, sender: this.session.name,
       text: validChatText(input), at: new Date().toISOString(),
@@ -292,8 +296,12 @@ export class CollaborationService {
     }
     if (frame.type === 'presence') {
       if (!Array.isArray(frame.peers) || frame.peers.length > 16) return;
+      const hadHost = this.peers.some((peer) => peer.role === 'host');
       this.peers = frame.peers;
       this.changed();
+      if (this.session?.role === 'guest' && this.state === 'connected' &&
+          !hadHost && frame.peers.some((peer) => peer.role === 'host'))
+        this.transmit({ kind: 'sync-request' });
       return;
     }
     if (frame.type !== 'payload') return;
