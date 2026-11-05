@@ -338,10 +338,11 @@ function ProvidersSection() {
             </div>
           </details>
           <p className="text-[12px] text-warn">
-            Experimental: Codex exec runs in a workspace-write sandbox. The per-tool Shuriken
-            approval dialog is not yet connected to Codex CLI commands. Test on a copy of your
-            Roblox project, and do not enable Codex for autonomous production runs yet.
-            Automatic switching between Claude and Codex is not implemented in this version.
+            Experimental: Codex CLI is read-only in Ask permission mode and workspace-write
+            in Autonomous mode. Codex's own shell/file actions do not use Shuriken's per-tool
+            approval dialog; Shuriken MCP tools still follow server-side permission checks.
+            Test on a copy of your Roblox project first. Automatic Claude/Codex switching is
+            not yet implemented.
           </p>
           <ErrorNote error={error} />
         </div>
