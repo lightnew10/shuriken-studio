@@ -37,6 +37,20 @@ describe('Shuriken collaboration protocol', () => {
     expect(parseCollabPayload({ kind: 'chat', message: { ...message, text: 'x'.repeat(3000) } }, false)).toBeNull();
   });
 
+  it('allows read-only snapshots from the host but never from a guest', () => {
+    const task = { id: 'task_1', title: 'Roblox GUI', role: 'ui-engineer', status: 'running', updatedAt: new Date().toISOString() };
+    const director = { id: 'msg_1', role: 'director', kind: 'text', text: 'Building the game', createdAt: new Date().toISOString() };
+    const taskFrame = { kind: 'task-batch', tasks: [task] };
+    const chatFrame = { kind: 'director-batch', messages: [director] };
+    expect(parseCollabPayload(taskFrame, false)).toBeNull();
+    expect(parseCollabPayload(chatFrame, false)).toBeNull();
+    expect(parseCollabPayload({ kind: 'task-remove', id: 'task_1' }, false)).toBeNull();
+    expect(parseCollabPayload(taskFrame, true)).toEqual(taskFrame);
+    expect(parseCollabPayload(chatFrame, true)).toEqual(chatFrame);
+    expect(parseCollabPayload({ kind: 'task-batch', tasks: [{ ...task, title: 'x'.repeat(251) }] }, true)).toBeNull();
+    expect(parseCollabPayload({ kind: 'director-batch', messages: [{ ...director, text: 'x'.repeat(3001) }] }, true)).toBeNull();
+  });
+
   it('bounds the local history, name and chat payload while fixing ten minutes recovery', () => {
     expect(COLLAB_RECONNECT_MS).toBe(600_000);
     expect(truncateCollabHistory(Array.from({ length: 500 }, (_, i) => ({
