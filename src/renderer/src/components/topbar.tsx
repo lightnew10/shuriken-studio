@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, Check, ChevronDown, Clock3, Film, Flame, LayoutGrid, Pause, Pencil, Play, Receipt, Settings2, Square } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Clock3, Film, Flame, LayoutGrid, Pause, Pencil, Play, Receipt, Settings2, Square, Users } from 'lucide-react';
 import type { OrchestratorState } from '@shared/events';
+import type { CollabHeaderStatus } from '@shared/collaboration';
 import { NO_READING_HINT, clockText, formatAccountUsage, limitingUsage } from '@shared/usage';
 import { COST_NOTE, usdText, type BuildCost } from '@shared/costs';
 import { goBack, navigate } from '../lib/nav';
@@ -117,6 +118,7 @@ export function TopBar({ title, back, children }: { title?: string; back?: boole
       </div>
       <div className="flex-1" />
       {children}
+      <CollaborationHeader />
       {project.data && <CostChip />}
       {accounts.data && <AccountMenu info={accounts.data} reload={accounts.reload} />}
       <IconButton title="Kiln (3D modeling, docked)" onClick={() => navigate('kiln')}>
@@ -133,6 +135,78 @@ export function TopBar({ title, back, children }: { title?: string; back?: boole
       <IconButton title="Settings" onClick={() => navigate('settings')}>
         <Settings2 size={16} />
       </IconButton>
+    </div>
+  );
+}
+
+/** Minimal participation badge, shared by host and guests in every project header. */
+function CollaborationHeader() {
+  // The full collaboration.status includes chat and task histories. Keep this global UI lightweight.
+  const session = useRpc<CollabHeaderStatus>('collaboration.header', undefined, ['collaboration.changed']);
+  const [open, setOpen] = useState(false);
+  const ref = useDismiss(open, () => setOpen(false));
+  const data = session.data;
+  if (!data?.role) return null;
+
+  const online = data.connection === 'connected' && (data.role === 'host' || data.hostOnline);
+  const status = online ? 'En ligne' : data.connection === 'reconnecting' ? 'Reconnexion' :
+    data.connection === 'connecting' ? 'Connexion' : data.role === 'guest' && !data.hostOnline ? 'Hôte absent' : 'Hors ligne';
+  const others = data.peers.filter((peer) => peer.id !== data.selfId);
+  const participants = data.peers.length;
+  const user = others[0]?.name ?? '';
+  const role = data.role === 'host' ? 'Hôte' : 'Invité';
+
+  return (
+    <div ref={ref} className="no-drag relative shrink-0">
+      <button
+        type="button"
+        aria-label={`Collaboration · ${status} · ${participants} participant${participants === 1 ? '' : 's'} · ouvrir les détails`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title={`Collaboration · ${status} · ${data.peers.map((peer) => peer.name).join(', ') || role}`}
+        onClick={() => setOpen((was) => !was)}
+        className={cx(
+          'inline-flex h-7 max-w-[210px] items-center gap-1.5 rounded-lg border px-2 text-[11.5px] font-medium transition-colors',
+          open ? 'border-accent/35 bg-accent/12 text-accent2' : 'border-line2 bg-surface2/60 text-dim hover:bg-white/5 hover:text-text',
+        )}
+      >
+        <span className={cx('h-1.5 w-1.5 shrink-0 rounded-full', online ? 'bg-ok' : 'bg-warn')} />
+        <span className="hidden sm:inline">Collab</span>
+        <span className={cx('text-[10.5px]', online ? 'text-text' : 'text-warn')}>{status}</span>
+        <span className="mx-0.5 h-3 w-px bg-line2" />
+        <Users size={12} className="shrink-0 text-faint" />
+        <span className="tabular-nums text-text">{participants}</span>
+        {online && user && <span className="hidden max-w-[64px] truncate text-faint 2xl:inline" title={user}>· {user}</span>}
+      </button>
+
+      <Popover open={open} align="right" width={264}>
+        <div className="px-2.5 pt-2 pb-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[12px] font-semibold text-text">Session collaborative</span>
+            <span className={cx('text-[10.5px] font-medium', online ? 'text-ok' : 'text-warn')}>{status}</span>
+          </div>
+          <p className="mt-1 text-[11px] text-faint">{role} · {participants} participant{participants === 1 ? '' : 's'} connecté{participants === 1 ? '' : 's'}</p>
+        </div>
+        <div className="mx-2 border-t border-line" />
+        <div className="max-h-52 overflow-y-auto px-1 py-1">
+          {data.peers.map((peer) => (
+            <div key={peer.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px]">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent/10 text-[11px] font-semibold text-accent2">
+                {peer.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-text" title={peer.name}>
+                {peer.name}{peer.id === data.selfId ? ' (vous)' : ''}
+              </span>
+              <span className="shrink-0 text-[10.5px] text-faint">{peer.role === 'host' ? 'Hôte' : 'Invité'}</span>
+            </div>
+          ))}
+          {!data.peers.length && <p className="px-2 py-2 text-[11px] text-faint">En attente de la connexion…</p>}
+        </div>
+        <div className="mx-2 border-t border-line" />
+        <button className={menuItem} onClick={() => { setOpen(false); navigate('settings', 'collaboration'); }}>
+          <Settings2 size={13} className="text-faint" /> Gérer la collaboration
+        </button>
+      </Popover>
     </div>
   );
 }
