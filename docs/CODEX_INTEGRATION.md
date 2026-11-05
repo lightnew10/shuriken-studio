@@ -18,6 +18,28 @@ codex login status
 **Subscription only:** the V1 rejects Codex CLI sessions logged in through an API key,
 to avoid accidental pay-per-token billing. No OpenAI API key is created by Shuriken.
 
+## One-click Windows updater and launcher
+
+A Windows launcher is included at the repository root: **Lancer-Shuriken.bat**.
+Double-click it from a clone of the fork (it will **not** work from a GitHub ZIP).
+
+It performs these operations, in order:
+
+1. Checks Git, npm and Node.js 24+.
+2. Stops without changing files if the Git workspace contains uncommitted or untracked files.
+3. Fetches your fork, checks out the feature/codex-integration branch, and merges the fork's latest version.
+4. Adds the official repository as the upstream remote if needed, fetches the official main branch and merges it **locally** into your feature branch.
+5. Runs npm ci only if packages are missing or package.json/package-lock.json changed during the update.
+6. Installs Codex CLI if missing and starts the official ChatGPT sign-in only when needed.
+7. Launches npm run dev (Electron's binary is prepared by the existing dev script).
+
+Git updates are **not auto-pushed** to your fork. If an upstream merge conflicts,
+the launcher aborts the in-progress merge and stops without using reset --hard or
+discarding local work. Resolve conflicts manually before trying again.
+
+The console stays open while the development app is running. For the first run,
+ensure Git and Node.js 24+ are installed and the fork was cloned with Git.
+
 ## Run this branch
 
 1. Check out branch **feature/codex-integration**.
