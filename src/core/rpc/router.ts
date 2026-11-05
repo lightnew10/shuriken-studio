@@ -462,6 +462,8 @@ export function createRouter(core: Core): Record<string, Handler> {
     'collaboration.join': ({ invitation }: { invitation: string }) => core.collaboration.join(invitation),
     'collaboration.leave': () => core.collaboration.leave(),
     'collaboration.sendChat': ({ text }: { text: string }) => core.collaboration.sendChat(text),
+    'collaboration.requestDirector': ({ text }: { text: string }) => core.collaboration.requestDirector(text),
+    'collaboration.setGuestRequests': ({ enabled }: { enabled: boolean }) => core.collaboration.setGuestRequests(enabled),
         // ─── AI providers ─────────────────────────────────────────────────────────
     'providers.assignments': () => ({
       ...core.providers.assignments(),
