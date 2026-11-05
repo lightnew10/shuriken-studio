@@ -14,7 +14,7 @@ const guestKey = randomBytes(32).toString('hex');
 const room = createHash('sha256').update(key).digest('hex').slice(0, 32);
 const wsUrl = 'ws://127.0.0.1:' + port + '/room/' + room;
 const worker = spawn('npx', ['wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port)], {
-  cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],
+  cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32',
 });
 let logs = '';
 worker.stdout.on('data', (b) => { logs = (logs + b.toString()).slice(-2000); });
@@ -88,6 +88,11 @@ try {
   process.exitCode = 1;
 } finally {
   for (const socket of sockets) try { socket.close(); } catch { /* closed */ }
-  worker.kill('SIGTERM');
-  await delay(500);
+  // npx can leave Wrangler as a child process; stop the entire local test process group.
+  if (process.platform !== 'win32' && worker.pid) {
+    try { process.kill(-worker.pid, 'SIGTERM'); } catch { worker.kill('SIGTERM'); }
+  } else worker.kill('SIGTERM');
+  await delay(300);
+  // A stopped workerd may keep an inherited stdio descriptor open for a while.
+  process.exit(process.exitCode ?? 0);
 }
