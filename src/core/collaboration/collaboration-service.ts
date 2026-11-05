@@ -7,6 +7,7 @@ import {
   type CollabChatEntry, type CollabConnection, type CollabPayload, type CollabPeer,
   type CollabRole, type CollabServerFrame, type CollabClientFrame,
   type CollabTaskSummary, type CollabDirectorSummary, type CollabHeaderStatus,
+  type CollabRequestReceipt, type CollabPendingRequest, type CollabRunSummary,
 } from '@shared/collaboration';
 
 type Session = {
@@ -25,6 +26,9 @@ export interface CollaborationStatus {
   remoteProject: { name: string; projectId: string | null; taskCount: number } | null;
   remoteTasks: CollabTaskSummary[];
   remoteDirector: CollabDirectorSummary[];
+  remoteRuns: CollabRunSummary[];
+  requests: CollabPendingRequest[];
+  guestRequestsEnabled: boolean;
   hostOnline: boolean;
   reconnectSeconds: number | null;
   error: string | null;
@@ -40,6 +44,11 @@ export interface CollaborationDeps {
   localProject: () => { name: string; projectId: string | null; taskCount: number };
   localTasks: () => CollabTaskSummary[];
   localDirector: () => CollabDirectorSummary[];
+  localRuns: () => CollabRunSummary[];
+  getAllowGuestRequests: () => boolean;
+  saveAllowGuestRequests: (enabled: boolean) => void;
+  /** Invoked exclusively in the host core after relay-authenticated requests pass admission checks. */
+  onGuestRequest: (sender: CollabPeer, id: string, text: string) => void;
 }
 
 /**
@@ -56,6 +65,10 @@ export class CollaborationService {
   private remoteProject: CollaborationStatus['remoteProject'] = null;
   private remoteTasks: CollabTaskSummary[] = [];
   private remoteDirector: CollabDirectorSummary[] = [];
+  private remoteRuns: CollabRunSummary[] = [];
+  private requests: CollabPendingRequest[] = [];
+  private hostReceipts = new Map<string, CollabRequestReceipt>();
+  private guestAccess = false;
   private lastError: string | null = null;
   private lostAt: number | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -86,6 +99,9 @@ export class CollaborationService {
       remoteProject: this.remoteProject,
       remoteTasks: [...this.remoteTasks],
       remoteDirector: [...this.remoteDirector],
+      remoteRuns: [...this.remoteRuns],
+      requests: [...this.requests],
+      guestRequestsEnabled: this.session?.role === 'host' ? this.deps.getAllowGuestRequests() : this.guestAccess,
       hostOnline: this.state === 'connected' && this.peers.some((peer) => peer.role === 'host'),
       reconnectSeconds: this.lostAt === null ? null : Math.max(0, Math.ceil((COLLAB_RECONNECT_MS - (Date.now() - this.lostAt)) / 1000)),
       error: this.lastError, remoteAgentsEnabled: false,
@@ -147,9 +163,37 @@ export class CollaborationService {
     this.remoteProject = null;
     this.remoteTasks = [];
     this.remoteDirector = [];
+    this.remoteRuns = [];
+    this.requests = [];
+    this.guestAccess = false;
+    this.hostReceipts.clear();
     this.lastError = null;
     this.changed();
     return this.status();
+  }
+
+  /** Host opt-in: one authorization for ordinary collaborator requests, not a prompt per file edit. */
+  setGuestRequests(enabled: boolean): CollaborationStatus {
+    if (this.session?.role === 'guest') throw new Error('Only the host can authorize guest Director requests.');
+    if (typeof enabled !== 'boolean') throw new Error('Expected a boolean permission.');
+    this.deps.saveAllowGuestRequests(enabled);
+    this.changed();
+    if (this.session?.role === 'host' && this.state === 'connected') this.shareProject();
+    return this.status();
+  }
+
+  /** A guest asks the host Director to perform work. No remote file, terminal or MCP access. */
+  requestDirector(input: string): CollabPendingRequest {
+    if (this.session?.role !== 'guest' || this.state !== 'connected' || !this.peers.some((p) => p.role === 'host'))
+      throw new Error('The host must be connected before you can request a change.');
+    if (!this.guestAccess) throw new Error('The host has not enabled guest requests.');
+    const text = validChatText(input);
+    const request: CollabPendingRequest = { id: randomUUID(), text, status: 'pending', at: new Date().toISOString() };
+    this.requests = [...this.requests, request].slice(-120);
+    try { this.transmit({ kind: 'director-request', id: request.id, text }); }
+    catch (e) { this.requests = this.requests.filter((r) => r.id !== request.id); throw e; }
+    this.changed();
+    return request;
   }
 
   sendChat(input: string): CollabChatEntry {
@@ -179,23 +223,32 @@ export class CollaborationService {
     if (this.session?.role !== 'host' || this.state !== 'connected') return;
     this.transmit({ kind: 'director-batch', messages: [message] });
   }
+  shareRun(run: CollabRunSummary): void {
+    if (this.session?.role !== 'host' || this.state !== 'connected') return;
+    this.transmit({ kind: 'run-batch', runs: [run] });
+  }
   /** An authoritative snapshot, sent on join/rejoin and when the host switches projects. */
   shareSnapshot(to?: string): void {
     if (this.session?.role !== 'host' || this.state !== 'connected') return;
     const tasks = this.deps.localTasks().slice(-200);
     const messages = this.deps.localDirector().slice(-60);
+    const runs = this.deps.localRuns().slice(-100);
     this.transmit({ kind: 'task-batch', tasks: [], reset: true }, to);
     for (let i = 0; i < tasks.length; i += 30)
       this.transmit({ kind: 'task-batch', tasks: tasks.slice(i, i + 30) }, to);
     this.transmit({ kind: 'director-batch', messages: [], reset: true }, to);
     for (let i = 0; i < messages.length; i += 12)
       this.transmit({ kind: 'director-batch', messages: messages.slice(i, i + 12) }, to);
+    this.transmit({ kind: 'run-batch', runs: [], reset: true }, to);
+    for (let i = 0; i < runs.length; i += 30)
+      this.transmit({ kind: 'run-batch', runs: runs.slice(i, i + 30) }, to);
   }
 
   /** Host advertises the project metadata, never file paths or credentials. */
   shareProject(): void {
     if (this.session?.role !== 'host' || this.state !== 'connected') return;
-    this.transmit({ kind: 'project-status', ...this.deps.localProject() });
+    this.transmit({ kind: 'project-status', ...this.deps.localProject(),
+      guestRequestsEnabled: this.deps.getAllowGuestRequests() });
   }
 
   private requireInactive(): void {
@@ -212,6 +265,10 @@ export class CollaborationService {
     this.remoteProject = null;
     this.remoteTasks = [];
     this.remoteDirector = [];
+    this.remoteRuns = [];
+    this.requests = [];
+    this.guestAccess = false;
+    this.hostReceipts.clear();
     this.changed();
   }
   private changed(): void { this.deps.bus.emit('collaboration.changed', {}); }
@@ -325,6 +382,35 @@ export class CollaborationService {
     this.chat = truncateCollabHistory([...this.chat, message]);
     this.changed();
   }
+  private retryRequests(): void {
+    if (this.session?.role !== 'guest' || this.state !== 'connected' ||
+        !this.peers.some((peer) => peer.role === 'host')) return;
+    for (const r of this.requests.filter((entry) => entry.status === 'pending'))
+      this.transmit({ kind: 'director-request', id: r.id, text: r.text });
+  }
+
+  private receiveGuestRequest(sender: CollabPeer, id: string, text: string): void {
+    const previous = this.hostReceipts.get(id);
+    if (previous) {
+      this.transmit({ kind: 'director-receipt', receipt: previous }, sender.id);
+      return;
+    }
+    let receipt: CollabRequestReceipt;
+    if (!this.deps.getAllowGuestRequests()) receipt = { id, status: 'rejected', reason: 'Guest requests are disabled by the host.' };
+    else {
+      try {
+        this.deps.onGuestRequest(sender, id, text);
+        receipt = { id, status: 'accepted' };
+      } catch (e) {
+        receipt = { id, status: 'rejected', reason: (e instanceof Error ? e.message : 'Request refused').slice(0, 160) };
+      }
+    }
+    this.hostReceipts.set(id, receipt);
+    if (this.hostReceipts.size > 500) this.hostReceipts.delete(this.hostReceipts.keys().next().value!);
+    this.transmit({ kind: 'director-receipt', receipt }, sender.id);
+    this.changed();
+  }
+
   private handle(frame: CollabServerFrame): void {
     if (frame.type === 'error') {
       this.lastError = frame.reason.slice(0, 250);
@@ -341,8 +427,10 @@ export class CollaborationService {
       this.lastError = null;
       this.finishOpening();
       this.changed();
-      if (this.session.role === 'guest') this.transmit({ kind: 'sync-request' });
-      else this.shareProject();
+      if (this.session.role === 'guest') {
+        this.transmit({ kind: 'sync-request' });
+        this.retryRequests();
+      } else this.shareProject();
       return;
     }
     if (frame.type === 'presence') {
@@ -351,8 +439,10 @@ export class CollaborationService {
       this.peers = frame.peers;
       this.changed();
       if (this.session?.role === 'guest' && this.state === 'connected' &&
-          !hadHost && frame.peers.some((peer) => peer.role === 'host'))
+          !hadHost && frame.peers.some((peer) => peer.role === 'host')) {
         this.transmit({ kind: 'sync-request' });
+        this.retryRequests();
+      }
       return;
     }
     if (frame.type !== 'payload') return;
@@ -364,6 +454,7 @@ export class CollaborationService {
       this.addMessage(data.message);
     } else if (data.kind === 'project-status' && sourceHost && this.session?.role === 'guest') {
       this.remoteProject = data;
+      this.guestAccess = data.guestRequestsEnabled === true;
       this.changed();
     } else if (data.kind === 'sync-request' && this.session?.role === 'host' && frame.from?.role === 'guest') {
       // Send bounded batches; a single 400-message history frame would exceed relay limits.
@@ -372,6 +463,17 @@ export class CollaborationService {
         this.transmit({ kind: 'history', messages: history.slice(offset, offset + 20) }, frame.from.id);
       this.shareProject();
       this.shareSnapshot(frame.from.id);
+    } else if (data.kind === 'director-request' && this.session?.role === 'host' && frame.from?.role === 'guest') {
+      this.receiveGuestRequest(frame.from, data.id, data.text);
+    } else if (data.kind === 'director-receipt' && sourceHost && this.session?.role === 'guest') {
+      this.requests = this.requests.map((request) => request.id === data.receipt.id ?
+        { ...request, status: data.receipt.status, ...(data.receipt.reason ? { reason: data.receipt.reason } : {}) } : request);
+      this.changed();
+    } else if (data.kind === 'run-batch' && sourceHost && this.session?.role === 'guest') {
+      const map = new Map((data.reset ? [] : this.remoteRuns).map((run) => [run.id, run]));
+      for (const run of data.runs) map.set(run.id, run);
+      this.remoteRuns = [...map.values()].slice(-150);
+      this.changed();
     } else if (data.kind === 'task-batch' && sourceHost && this.session?.role === 'guest') {
       const map = new Map((data.reset ? [] : this.remoteTasks).map((t) => [t.id, t]));
       for (const task of data.tasks) map.set(task.id, task);
