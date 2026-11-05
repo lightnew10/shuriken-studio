@@ -8,6 +8,7 @@ type Message = { id: string; from: string; sender: string; text: string; at: str
 type RemoteTask = { id: string; title: string; role: string; status: string; updatedAt: string };
 type RemoteDirectorMessage = { id: string; role: 'user' | 'director' | 'system'; kind: string; text: string; createdAt: string; sender?: string };
 type RemoteRun = { id: string; taskId: string | null; role: string; status: string; startedAt: string; endedAt: string | null };
+type RemoteActivity = { runId: string; taskId: string | null; kind: string; at: string };
 type GuestRequest = { id: string; text: string; status: 'pending' | 'accepted' | 'rejected'; at: string; reason?: string };
 interface CollaborationStatus {
   connection: 'offline' | 'connecting' | 'connected' | 'reconnecting';
@@ -23,6 +24,8 @@ interface CollaborationStatus {
   remoteTasks: RemoteTask[];
   remoteDirector: RemoteDirectorMessage[];
   remoteRuns: RemoteRun[];
+  remoteActivity: RemoteActivity[];
+  directorTyping: boolean;
   requests: GuestRequest[];
   guestRequestsEnabled: boolean;
   hostOnline: boolean;
@@ -261,7 +264,8 @@ export function CollaborationSettings() {
                     <div className="mt-1 whitespace-pre-wrap break-words text-[12.5px] text-dim">{msg.text}</div>
                   </div>
                 ))}
-                {!session.data.remoteDirector?.length && <p className="text-[12px] text-faint">Waiting for the host's project snapshot.</p>}
+                {session.data.directorTyping && <p className="text-[12px] text-accent2">Director is responding…</p>}
+                {!session.data.remoteDirector?.length && !session.data.directorTyping && <p className="text-[12px] text-faint">Waiting for the host's project snapshot.</p>}
               </div>
             </div>
             <div className="border-t border-line pt-3">
@@ -269,7 +273,10 @@ export function CollaborationSettings() {
               <div className="max-h-36 space-y-1 overflow-y-auto">
                 {(session.data.remoteRuns ?? []).slice(-20).reverse().map((run) => (
                   <div key={run.id} className="flex items-center justify-between gap-2 py-1 text-[12px]">
-                    <span className="truncate text-dim">{run.role}</span>
+                    <span className="truncate text-dim">{run.role}
+                      {run.status === 'running' && session.data?.remoteActivity?.find((activity) => activity.runId === run.id) &&
+                        <span className="ml-2 text-[10.5px] text-faint">· {session.data.remoteActivity.find((activity) => activity.runId === run.id)?.kind.replace(/-/g, ' ')}</span>}
+                    </span>
                     <span className={run.status === 'failed' ? 'text-bad' : run.status === 'completed' ? 'text-ok' : 'text-faint'}>{run.status}</span>
                   </div>
                 ))}
