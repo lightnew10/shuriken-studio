@@ -49,6 +49,7 @@ const CHAT_KEEP = 400;
 
 export function ChatPanel({ className }: { className?: string }) {
   const history = useRpc<ChatMessage[]>('chat.list', { limit: 300 }, ['project.changed']);
+  const collab = useRpc<{ connection: string; role: string | null; peers: unknown[] }>('collaboration.status', undefined, ['collaboration.changed']);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [typing, setTyping] = useState(false);
   const project = useCurrentProject();
@@ -202,6 +203,17 @@ export function ChatPanel({ className }: { className?: string }) {
         if (paths.length) void rpc('references.add', { paths, from: 'chat' }).catch(() => undefined);
       }}
     >
+      {collab.data?.role && (
+        <button
+          type="button"
+          className="no-drag flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2 text-[11.5px] text-dim hover:bg-white/4 hover:text-text"
+          onClick={() => navigate('settings', 'collaboration')}
+          title="Open collaborative session chat, participants and project activity"
+        >
+          <span>Collaboration · {collab.data.connection === 'connected' ? 'connected' : collab.data.connection} · {collab.data.peers.length} participant(s)</span>
+          <span className="font-medium text-accent2">Session chat ›</span>
+        </button>
+      )}
       {adopted && (
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-2 text-[12px] text-dim">
           <BookOpen size={13} className="shrink-0 text-accent2" />
