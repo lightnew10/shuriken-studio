@@ -73,7 +73,7 @@ describe('Codex provider', () => {
       permission: async () => ({ allow: true }),
       signal: new AbortController().signal,
     };
-    const handle = new CodexProvider().run(request);
+    const handle = new CodexProvider((tier) => tier === 'balanced' ? 'balanced-model' : 'default').run(request);
     const received = [];
     for await (const evt of handle.events) received.push(evt);
     expect(received.find((e) => e.type === 'started')).toMatchObject({ providerSessionId: 'test-session-123' });
@@ -81,6 +81,7 @@ describe('Codex provider', () => {
     expect(received.find((e) => e.type === 'completed')).toMatchObject({
       ok: true, inputTokens: 123, outputTokens: 45, structured: { ok: true },
     });
-    expect(mockedSpawn).toHaveBeenCalledWith('codex', expect.arrayContaining(['exec', '--json', '--sandbox', 'workspace-write']), expect.any(Object));
+    expect(mockedSpawn).toHaveBeenCalledWith('codex', expect.arrayContaining(['exec', '--json', '--sandbox', 'workspace-write', '--model', 'balanced-model']), expect.any(Object));
+    expect(received.find((e) => e.type === 'started')).toMatchObject({ model: 'balanced-model' });
   });
 });
