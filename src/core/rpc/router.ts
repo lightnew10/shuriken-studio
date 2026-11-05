@@ -302,6 +302,7 @@ export function createRouter(core: Core): Record<string, Handler> {
     'tasks.runNow': ({ id }: { id: string }) => core.orchestrator.runNow(id),
     'tasks.cancel': ({ id }: { id: string }) => core.orchestrator.cancel(id),
     'tasks.pause': ({ id }: { id: string }) => core.orchestrator.pauseTask(id),
+    'tasks.resume': ({ id }: { id: string }) => core.orchestrator.resumeTask(id),
     'tasks.approveProposed': ({ id }: { id: string }) => {
       const t = p().tasks.setStatus(id, 'ready', 'Approved by user', 'user');
       core.orchestrator.kick();
