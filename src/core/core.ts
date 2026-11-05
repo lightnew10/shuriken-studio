@@ -26,6 +26,7 @@ import { acquireLock } from './projects/project-lock';
 import { GameAdoption } from './projects/adoption';
 import { DossierStore } from './projects/game-study';
 import { ProviderRegistry } from './providers/provider-registry';
+import { CollaborationService } from './collaboration/collaboration-service';
 import { ClaudeProvider, DEFAULT_CLAUDE_SETTINGS } from './providers/claude/claude-provider';
 import { CodexProvider } from './providers/codex/codex-provider';
 import type { IAgentProvider, ProbeContext } from './providers/types';
@@ -168,6 +169,7 @@ export class Core {
   readonly skills: SkillService;
   readonly projects: ProjectService;
   readonly providers: ProviderRegistry;
+  readonly collaboration: CollaborationService;
   readonly usage: UsageTracker;
   readonly accounts: AccountService;
   readonly prefs: AppPrefsService;
@@ -234,6 +236,19 @@ export class Core {
     this.skills = new SkillService(this.global, join(opts.dataDir, 'skills'), opts.resourcesDir ? join(opts.resourcesDir, 'skills') : null, this.logger.scope('skills'));
     this.projects = new ProjectService(this.global, this.bus, this.knowledge);
     this.providers = new ProviderRegistry(this.global);
+    this.collaboration = new CollaborationService({
+      bus: this.bus,
+      getRelay: () => this.setting('collaboration.relay'),
+      saveRelay: (url) => this.setSetting('collaboration.relay', url),
+      getName: () => this.setting('collaboration.name'),
+      saveName: (name) => this.setSetting('collaboration.name', name),
+      localProject: () => ({
+        name: this.project?.summary.name ?? 'No project open',
+        projectId: this.project?.summary.id ?? null,
+        taskCount: this.project?.tasks.list({}).length ?? 0,
+      }),
+    });
+    this.bus.on('project.changed', () => this.collaboration.shareProject());
     const providers = opts.providers ?? [
       new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
       new CodexProvider((tier) => this.providers.codexModels()[tier]),
@@ -1716,6 +1731,7 @@ export class Core {
   }
 
   async shutdown(): Promise<void> {
+    this.collaboration.leave();
     if (this.opts.forgeGpu) setForgeBatch(null);
     if (this.healthTimer) clearInterval(this.healthTimer);
     await this.studioLink?.stop().catch(() => {});
