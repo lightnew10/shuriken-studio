@@ -39,8 +39,9 @@ Choices apply to **new runs**, not already-running agents.
 - Shuriken MCP tools retain their server-side approval rules.
 - Codex's shell and file commands do **not** currently use Shuriken's per-tool
   interactive approval dialog. Do not enable autonomous runs on production games.
-- The CLI needs network access to reach the local Shuriken MCP server. This also
-  permits other network access within Codex's sandbox. Keep secrets out of the workspace.
+- Shuriken registers its loopback MCP server with the Codex host process. It
+  does **not** enable network access for model-generated sandboxed shell commands.
+  The MCP handshake on Windows still requires a real-device integration test.
 - Do not bypass the Codex sandbox.
 
 ## Included
