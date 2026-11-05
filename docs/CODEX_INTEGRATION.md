@@ -52,6 +52,22 @@ ensure Git and Node.js 24+ are installed and the fork was cloned with Git.
 
 Choices apply to **new runs**, not already-running agents.
 
+### Choose a Codex model for Fast / Balanced / Deep
+
+Go to **Settings → AI accounts → Codex models by task level** after signing in with ChatGPT. Shuriken reads the models advertised by the installed **Codex CLI app-server** (the `model/list` RPC), so names are not hard-coded and no API key is needed.
+
+- **Fast**: model for small/quick tasks.
+- **Balanced**: model for routine work.
+- **Deep**: model for difficult specialist tasks.
+- **Astra is excluded** from the displayed catalog and rejected as a saved model.
+- The saved selections are global to Shuriken and persist between restarts.
+- Changes affect new Codex runs, including fallback from a limited Claude account; active runs are not switched.
+- **Codex CLI default (not pinned)** remains available as a legacy setting. It cannot be verified as non-Astra; select explicit models for all three tiers if you want a strict exclusion.
+- The model catalog describes choices but **does not guarantee entitlement** on a given ChatGPT plan. The first real turn confirms availability; an unsupported model can produce an error.
+- If the app-server catalog cannot be loaded, update the official Codex CLI with `npm install -g @openai/codex` and use **Refresh models**. No model is silently substituted with a guessed identifier.
+
+**Important:** Shuriken already maps each agent role to a Fast, Balanced or Deep tier. This feature applies that existing tier to the Codex provider; it does not override individual role-tier settings.
+
 ### Optional automatic Claude → Codex quota fallback
 
 Under **Settings → AI accounts → Automatic quota fallback**, enable **Use Codex when Claude reaches its quota**. This requires an installed Codex CLI authenticated with a ChatGPT subscription.
@@ -93,7 +109,7 @@ Under **Settings → AI accounts → Automatic quota fallback**, enable **Use Co
 - Multiple Codex account profiles.
 - Exact Codex quota and reset-time display.
 - Per-command Shuriken approval for Codex CLI shell/file commands.
-- Codex tier mapping: its CLI-configured default model is used.
+- Automatically assigning different Codex models based on estimated task complexity (the configured role tier still controls selection).
 - Kiln's separate Claude backend: it is unchanged.
 - Proof of end-to-end operation with the user's Roblox Studio and Windows login.
 
