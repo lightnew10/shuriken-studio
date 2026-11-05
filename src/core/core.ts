@@ -27,6 +27,7 @@ import { GameAdoption } from './projects/adoption';
 import { DossierStore } from './projects/game-study';
 import { ProviderRegistry } from './providers/provider-registry';
 import { CollaborationService } from './collaboration/collaboration-service';
+import type { CollabRunSummary } from '@shared/collaboration';
 import { ClaudeProvider, DEFAULT_CLAUDE_SETTINGS } from './providers/claude/claude-provider';
 import { CodexProvider } from './providers/codex/codex-provider';
 import type { IAgentProvider, ProbeContext } from './providers/types';
@@ -253,8 +254,27 @@ export class Core {
       })),
       localDirector: () => this.project ? (this.director.chat()?.list(60) ?? [])
         .filter((msg) => msg.channel === 'director' && (msg.role === 'user' || msg.role === 'director' || msg.role === 'system'))
-        .map((msg) => ({ id: msg.id, role: msg.role as 'user' | 'director' | 'system',
-          kind: msg.kind, text: msg.text.slice(0, 3_000), createdAt: msg.createdAt })) : [],
+        .map((msg) => ({
+          id: msg.id, role: msg.role as 'user' | 'director' | 'system',
+          kind: msg.kind, text: msg.text.slice(0, 3_000), createdAt: msg.createdAt,
+          ...((msg.data?.collaboration as { sender?: string } | undefined)?.sender ?
+            { sender: (msg.data?.collaboration as { sender: string }).sender } : {}),
+        })) : [],
+      localRuns: () => (this.project?.store.all<{
+        id: string; task_id: string | null; role: string;
+        status: CollabRunSummary['status']; started_at: string; ended_at: string | null;
+      }>('SELECT id, task_id, role, status, started_at, ended_at FROM runs ORDER BY started_at DESC LIMIT 100') ?? [])
+        .map((run) => ({ id: run.id, taskId: run.task_id, role: run.role, status: run.status,
+          startedAt: run.started_at, endedAt: run.ended_at })),
+      getAllowGuestRequests: () => this.setting('collaboration.allowGuestRequests') === '1',
+      saveAllowGuestRequests: (enabled) => this.setSetting('collaboration.allowGuestRequests', enabled ? '1' : '0'),
+      onGuestRequest: (sender, id, text) => {
+        if (!this.project) throw new Error('The host must open a project before receiving collaborator requests.');
+        if (this.opts.safeMode) throw new Error('Guest work is disabled in safe mode.');
+        // A trusted collaborator enters the same local Director pipeline as the host.
+        // Existing host project permission policies still govern local tool execution.
+        this.director.send(text, { sender: sender.name, peerId: sender.id, requestId: id });
+      },
     });
     this.bus.on('project.changed', () => {
       this.collaboration.shareProject();
@@ -268,8 +288,17 @@ export class Core {
     this.bus.on('chat.message', (msg) => {
       if (msg.projectId !== this.project?.summary.id || msg.channel !== 'director') return;
       if (msg.role !== 'user' && msg.role !== 'director' && msg.role !== 'system') return;
+      const sender = (msg.data?.collaboration as { sender?: string } | undefined)?.sender;
       this.collaboration.shareDirector({ id: msg.id, role: msg.role, kind: msg.kind,
-        text: msg.text.slice(0, 3_000), createdAt: msg.createdAt });
+        text: msg.text.slice(0, 3_000), createdAt: msg.createdAt,
+        ...(sender ? { sender } : {}) });
+    });
+    this.bus.on('run.updated', (run) => {
+      if (!this.project) return;
+      this.collaboration.shareRun({
+        id: run.id, taskId: run.taskId, role: run.role, status: run.status,
+        startedAt: run.startedAt, endedAt: run.endedAt,
+      });
     });
     const providers = opts.providers ?? [
       new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
