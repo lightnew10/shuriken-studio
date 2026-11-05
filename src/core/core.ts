@@ -300,6 +300,20 @@ export class Core {
         startedAt: run.startedAt, endedAt: run.endedAt,
       });
     });
+    this.bus.on('chat.typing', (state) => {
+      if (state.projectId !== this.project?.summary.id || (state.channel && state.channel !== 'director')) return;
+      this.collaboration.shareTyping(state.typing);
+    });
+    this.bus.on('run.stream', (chunk) => {
+      if (!this.project) return;
+      // Never relay raw model output, private reasoning, tool inputs or local paths.
+      const kind = chunk.kind === 'text' ? 'writing' : chunk.kind === 'tool_use' ? 'tool-use' :
+        chunk.kind === 'tool_result' ? 'tool-result' : chunk.kind;
+      this.collaboration.shareActivity({
+        runId: chunk.runId, taskId: chunk.taskId,
+        kind, at: new Date().toISOString(),
+      });
+    });
     const providers = opts.providers ?? [
       new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
       new CodexProvider((tier) => this.providers.codexModels()[tier]),
