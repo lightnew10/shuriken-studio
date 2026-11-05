@@ -119,6 +119,15 @@ export class CollabRoom extends DurableObject<Env> {
       data.message.sender = member.name;
       data.message.at = new Date().toISOString();
     }
+    // Instructions from a guest are delivered ONLY to the authenticated host.
+    // Other guests see the accepted user message through host-originated Director events,
+    // not unvalidated commands from another participant.
+    if (data.kind === 'director-request') {
+      const host = this.members().find(({ info }) => info.role === 'host');
+      if (!host) return send(ws, { v: 1, type: 'error', reason: 'Host unavailable' });
+      send(host.ws, { v: 1, type: 'payload', from: member, data });
+      return;
+    }
     this.broadcast({ v: 1, type: 'payload', from: member, data }, msg.to);
   }
 
