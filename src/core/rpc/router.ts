@@ -454,9 +454,27 @@ export function createRouter(core: Core): Record<string, Handler> {
     // ─── AI providers ─────────────────────────────────────────────────────────
     'providers.assignments': () => ({
       ...core.providers.assignments(),
+      codexFallbackEnabled: core.providers.codexFallbackEnabled(),
+      codexFallbackActive: core.providers.codexFallbackEnabled() &&
+        core.providers.preferredForRole('critic').id === 'claude' &&
+        core.providers.forRole('critic').id === 'codex',
       providers: core.providers.list().map((provider) => ({ id: provider.id, name: provider.displayName })),
       roleOptions: Object.values(ROLES).map((role) => ({ id: role.id, name: role.name })),
     }),
+    'providers.setCodexFallback': async ({ enabled }: { enabled: boolean }) => {
+      if (enabled) {
+        const codex = core.providers.get('codex');
+        if (!codex || !(await codex.detect()).installed)
+          throw new Error('Codex CLI must be installed before enabling automatic fallback.');
+        if (!(await codex.auth()).authenticated)
+          throw new Error('Sign in to Codex with your ChatGPT subscription before enabling automatic fallback.');
+        const health = await core.health.run('provider:codex', false);
+        if (health.status !== 'healthy') throw new Error('Codex is not ready: ' + health.summary);
+      }
+      core.providers.setCodexFallbackEnabled(enabled);
+      core.orchestrator.kick();
+      return { enabled: core.providers.codexFallbackEnabled() };
+    },
     'providers.setAssignments': async ({ default: selected, roles }: { default: string; roles: Record<string, string> }) => {
       const usesCodex = selected === 'codex' || Object.values(roles ?? {}).includes('codex');
       if (usesCodex) {
