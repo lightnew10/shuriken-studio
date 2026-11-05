@@ -26,6 +26,13 @@ git rev-parse --is-inside-work-tree >nul 2>&1 || goto :not_repo
 git remote get-url origin 2>nul | findstr /i /c:"lightnew10/shuriken-studio" >nul
 if errorlevel 1 goto :wrong_origin
 
+rem Non-destructive preflight for CI: never fetch, merge or launch.
+if /i "%~1"=="--self-test" (
+    echo [OK] Windows launcher preflight passed.
+    popd
+    exit /b 0
+)
+
 rem Never overwrite local edits or untracked files.
 for /f "delims=" %%S in ('git status --porcelain --untracked-files=normal') do set "DIRTY=1"
 if defined DIRTY goto :dirty
