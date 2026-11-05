@@ -187,9 +187,8 @@ export class CodexProvider implements IAgentProvider {
           args.push('-c', 'mcp_servers.' + server.name + '.url=' + JSON.stringify(server.url));
           if (token) args.push('-c', 'mcp_servers.' + server.name + '.bearer_token_env_var=' + JSON.stringify(variable));
         }
-        // The local Shuriken MCP endpoint needs loopback HTTP access. Codex's
-        // workspace-write sandbox remains enabled; this also enables network access.
-        if (req.toolServers.length) args.push('-c', 'sandbox_workspace_write.network_access=true');
+        // Codex itself connects to MCP. Do not open the sandbox's network access
+        // for model-generated shell commands merely to reach a local MCP server.
         if (req.model && req.model !== 'default') {
           if (!/^[a-zA-Z0-9._:-]+$/.test(req.model)) throw new Error('Invalid Codex model identifier');
           args.push('--model', req.model);
