@@ -17,6 +17,14 @@ export interface CollabPeer {
   name: string;
   role: CollabRole;
 }
+/** Lightweight header status: never transports chat history, invite tokens or AI credentials. */
+export interface CollabHeaderStatus {
+  role: CollabRole | null;
+  connection: CollabConnection;
+  peers: CollabPeer[];
+  selfId: string | null;
+  hostOnline: boolean;
+}
 export interface CollabChatEntry {
   id: string;
   from: string;
