@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Copy, Globe2, LogOut, MessageSquare, Radio, RefreshCw, Users } from 'lucide-react';
 import { Button, ErrorNote, Field, Pill, cx, inputClass } from '../components/ui';
 import { rpc, useRpc } from '../lib/rpc';
+import { navigate } from '../lib/nav';
 
 type Peer = { id: string; name: string; role: 'host' | 'guest' };
 type Message = { id: string; from: string; sender: string; text: string; at: string };
@@ -182,6 +183,7 @@ export function CollaborationSettings() {
               {session.data?.remoteProject && (
                 <p className="text-[12px] text-dim">Host project: {session.data.remoteProject.name} · {session.data.remoteProject.taskCount} tasks</p>
               )}
+              <Button kind="secondary" icon={<Users size={14} />} onClick={() => navigate('collaboration')}>Open shared workspace</Button>
               <Button kind="ghost" icon={<LogOut size={14} />} onClick={() => void run(() => rpc('collaboration.leave'))}>
                 {hostname ? 'End session for everyone' : 'Leave session immediately'}
               </Button>
