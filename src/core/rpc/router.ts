@@ -456,8 +456,10 @@ export function createRouter(core: Core): Record<string, Handler> {
       ...core.providers.assignments(),
       codexFallbackEnabled: core.providers.codexFallbackEnabled(),
       codexFallbackActive: core.providers.codexFallbackEnabled() &&
-        core.providers.preferredForRole('critic').id === 'claude' &&
-        core.providers.forRole('critic').id === 'codex',
+        Object.values(ROLES).some((role) =>
+          core.providers.preferredForRole(role.id).id === 'claude' &&
+          core.providers.forRole(role.id).id === 'codex',
+        ),
       providers: core.providers.list().map((provider) => ({ id: provider.id, name: provider.displayName })),
       roleOptions: Object.values(ROLES).map((role) => ({ id: role.id, name: role.name })),
     }),
