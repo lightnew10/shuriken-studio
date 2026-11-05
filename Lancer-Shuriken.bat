@@ -18,7 +18,7 @@ where git >nul 2>&1 || goto :missing_git
 where node >nul 2>&1 || goto :missing_node
 where npm >nul 2>&1 || goto :missing_npm
 
-for /f "delims=" %%V in ('node -p "process.versions.node.split('.')[0]"') do set "NODE_MAJOR=%%V"
+for /f "delims=" %%V in ('node -p "parseInt(process.versions.node,10)"') do set "NODE_MAJOR=%%V"
 if not defined NODE_MAJOR goto :missing_node
 if %NODE_MAJOR% LSS 24 goto :old_node
 
