@@ -9,6 +9,8 @@ export const COLLAB_MAX_CHAT_CHARS = 2_000;
 export const COLLAB_MAX_NAME_CHARS = 48;
 export const COLLAB_MAX_CHAT_HISTORY = 400;
 export const COLLAB_MAX_PEERS = 12;
+export const COLLAB_MAX_DIRECTOR_CHARS = 2_000;
+export const COLLAB_REQUEST_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 
 export type CollabRole = 'host' | 'guest';
 export type CollabConnection = 'offline' | 'connecting' | 'connected' | 'reconnecting';
@@ -45,6 +47,28 @@ export interface CollabDirectorSummary {
   kind: string;
   text: string;
   createdAt: string;
+  /** Display only; set by the authoritative host on a guest-initiated Director message. */
+  sender?: string;
+}
+export interface CollabRunSummary {
+  id: string;
+  taskId: string | null;
+  role: string;
+  status: 'starting' | 'running' | 'completed' | 'failed' | 'interrupted' | 'cancelled';
+  startedAt: string;
+  endedAt: string | null;
+}
+export interface CollabRequestReceipt {
+  id: string;
+  status: 'accepted' | 'rejected';
+  reason?: string;
+}
+export interface CollabPendingRequest {
+  id: string;
+  text: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  reason?: string;
+  at: string;
 }
 export type CollabPayload =
   | { kind: 'chat'; message: CollabChatEntry }
@@ -53,7 +77,10 @@ export type CollabPayload =
   | { kind: 'project-status'; name: string; projectId: string | null; taskCount: number }
   | { kind: 'task-batch'; tasks: CollabTaskSummary[]; reset?: boolean }
   | { kind: 'task-remove'; id: string }
-  | { kind: 'director-batch'; messages: CollabDirectorSummary[]; reset?: boolean };
+  | { kind: 'director-batch'; messages: CollabDirectorSummary[]; reset?: boolean }
+  | { kind: 'director-request'; id: string; text: string }
+  | { kind: 'director-receipt'; receipt: CollabRequestReceipt }
+  | { kind: 'run-batch'; runs: CollabRunSummary[]; reset?: boolean };
 export type CollabClientFrame =
   | { v: 1; type: 'hello'; role: CollabRole; secret: string; name: string }
   | { v: 1; type: 'leave' }
@@ -109,6 +136,12 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
   if (!input || typeof input !== 'object') return null;
   const value = input as Record<string, unknown>;
   if (value.kind === 'sync-request') return { kind: 'sync-request' };
+  if (!senderIsHost && value.kind === 'director-request') {
+    if (typeof value.id !== 'string' || !COLLAB_REQUEST_ID.test(value.id) ||
+        typeof value.text !== 'string' || value.text.length > COLLAB_MAX_DIRECTOR_CHARS) return null;
+    try { return { kind: 'director-request', id: value.id, text: validChatText(value.text) }; }
+    catch { return null; }
+  }
   if (value.kind === 'chat') {
     const m = value.message;
     if (!m || typeof m !== 'object') return null;
@@ -149,10 +182,39 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
           typeof m.kind !== 'string' || m.kind.length > 48 ||
           typeof m.text !== 'string' || m.text.length > 3_000 ||
           typeof m.createdAt !== 'string' || !Number.isFinite(Date.parse(m.createdAt))) return null;
+      if (m.sender !== undefined && (typeof m.sender !== 'string' || m.sender.length > COLLAB_MAX_NAME_CHARS)) return null;
       messages.push({ id: m.id, role: m.role as CollabDirectorSummary['role'], kind: m.kind,
-        text: m.text, createdAt: m.createdAt });
+        text: m.text, createdAt: m.createdAt, ...(typeof m.sender === 'string' ? { sender: m.sender } : {}) });
     }
     return { kind: 'director-batch', messages, ...(value.reset === true ? { reset: true } : {}) };
+  }
+  if (value.kind === 'director-receipt') {
+    const r = value.receipt;
+    if (!r || typeof r !== 'object') return null;
+    const receipt = r as Record<string, unknown>;
+    if (typeof receipt.id !== 'string' || !COLLAB_REQUEST_ID.test(receipt.id) ||
+        (receipt.status !== 'accepted' && receipt.status !== 'rejected') ||
+        (receipt.reason !== undefined && (typeof receipt.reason !== 'string' || receipt.reason.length > 160))) return null;
+    return { kind: 'director-receipt', receipt: {
+      id: receipt.id, status: receipt.status,
+      ...(typeof receipt.reason === 'string' ? { reason: receipt.reason } : {}),
+    } };
+  }
+  if (value.kind === 'run-batch' && Array.isArray(value.runs) && value.runs.length <= 35) {
+    const runs: CollabRunSummary[] = [];
+    for (const r of value.runs) {
+      if (!r || typeof r !== 'object') return null;
+      const x = r as Record<string, unknown>;
+      if (typeof x.id !== 'string' || !x.id || x.id.length > 100 ||
+          (x.taskId !== null && (typeof x.taskId !== 'string' || x.taskId.length > 100)) ||
+          typeof x.role !== 'string' || x.role.length > 100 ||
+          !['starting', 'running', 'completed', 'failed', 'interrupted', 'cancelled'].includes(String(x.status)) ||
+          typeof x.startedAt !== 'string' || !Number.isFinite(Date.parse(x.startedAt)) ||
+          (x.endedAt !== null && (typeof x.endedAt !== 'string' || !Number.isFinite(Date.parse(x.endedAt))))) return null;
+      runs.push({ id: x.id, taskId: x.taskId as string | null, role: x.role,
+        status: x.status as CollabRunSummary['status'], startedAt: x.startedAt, endedAt: x.endedAt as string | null });
+    }
+    return { kind: 'run-batch', runs, ...(value.reset === true ? { reset: true } : {}) };
   }
   if (value.kind === 'history') {
     if (!Array.isArray(value.messages) || value.messages.length > COLLAB_MAX_CHAT_HISTORY) return null;
