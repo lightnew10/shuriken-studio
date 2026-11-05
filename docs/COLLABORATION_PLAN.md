@@ -11,22 +11,30 @@
 - Shared capacity requested as an opt-in feature. **Do not auto-delegate personal ChatGPT/Claude subscriptions to other people until provider terms and controls permit it.** Individual owners can execute their own assignments in the shared project. Provider-specific pool policies need review.
 - Default permissions deny remote file writes, Roblox mutations, terminal commands and unattended AI execution.
 
+## Implementation status
+
+**C1 implemented in branch (not deployed):** Settings tab, host- or guest-initiated WSS, private invitation links, Cloudflare Durable Object authentication, human chat, peer presence, 10-minute reconnect, immediate leave, bounded in-memory history and CI tests. The Worker is tested in a local Cloudflare runtime, but still requires a deployment to the host's Cloudflare account and a two-PC packaged-app test.
+
+**C2 partially implemented:** guests receive the host's project title, recent visible Director messages and task status updates **read-only**. Dashboard Director has a shortcut to session chat. Full authoritative persistence and true remote editing are still pending.
+
+**C3–C5 NOT IMPLEMENTED:** no guest file edits, no host Roblox tool access, no remote Claude/Codex execution, no cross-user subscription pooling. Do not treat the feature as production-ready or enable remote AI actions without the listed security reviews.
+
 ## Phases, dependencies, and acceptance criteria
 
 ### C1 — Session transport and settings (implementation baseline)
-- [ ] New **Settings → Collaboration** section with relay URL, display name, create/join, copy invitation, leave, peers, connection status and session chat.
-- [ ] Cloudflare hibernating WebSocket relay with short-lived secret-based room authentication and no persisted chat or game content; deployable with host's account.
-- [ ] Versioned shared wire protocol, payload validation and limits.
-- [ ] Separate host secret / invite secret, randomized session identifiers, server-side role enforcement.
-- [ ] Automatic reconnection with bounded exponential backoff and **10 min** grace; voluntary leave is immediate and clears temporary keys.
-- [ ] Locally retained bounded session chat; joining/rejoining participants request missed events from the host.
-- [ ] Unit tests and Windows/Linux typecheck.
-- [ ] Clear UI that session link joining is in-app (not a hosted project page) and relay deployment is an explicit separate action.
+- [x] New **Settings → Collaboration** section with relay URL, display name, create/join, copy invitation, leave, peers, connection status and session chat.
+- [x] Cloudflare hibernating WebSocket relay with short-lived secret-based room authentication and no persisted chat or game content; deployable with host's account.
+- [x] Versioned shared wire protocol, payload validation and limits.
+- [x] Separate host secret / invite secret, randomized session identifiers, server-side role enforcement.
+- [x] Automatic reconnection with bounded exponential backoff and **10 min** grace; voluntary leave is immediate and clears temporary keys.
+- [x] Locally retained bounded session chat; joining/rejoining participants request missed events from the host.
+- [x] Unit tests and Windows/Linux typecheck.
+- [x] Clear UI that session link joining is in-app (not a hosted project page) and relay deployment is an explicit separate action.
 
 ### C2 — Real shared project state
 - [ ] Single authoritative project ID and rev/sequence (host), snapshots + replay after reconnect.
-- [ ] Shared human chat visible in the main dashboard; distinguish human discussion from Director prompts and track message author.
-- [ ] Guest agent activity + task status, human permissions/approvals, pause/resume semantics.
+- [ ] Shared human chat visible in the main dashboard; distinguish human discussion from Director prompts and track message author. (Session chat accessible via a dashboard shortcut; not merged into Director.)
+- [ ] Guest agent activity + task status, human permissions/approvals, pause/resume semantics. (Host task statuses are already mirrored read-only.)
 - [ ] Durable host-side event log, idempotent operations, acknowledgements and crash recovery.
 - [ ] Integration tests with two Shuriken cores, packet loss, latency, 10-minute disconnect.
 
