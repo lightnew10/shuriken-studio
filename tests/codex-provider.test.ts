@@ -39,12 +39,16 @@ describe('Codex provider', () => {
   });
 
   it('accepts a ChatGPT Codex CLI sign-in and refuses API-key billing in subscription mode', async () => {
-    mockedSpawn.mockReturnValueOnce(fakeChild([{ type: 'noop' }]) as never);
     // commandOutput looks at CLI text rather than JSON for authentication.
     const api = fakeChild([]);
     api.stdout.write('Logged in using an API key\n');
     mockedSpawn.mockReturnValueOnce(api as never);
     expect((await new CodexProvider().auth()).authenticated).toBe(false);
+
+    const chatgpt = fakeChild([]);
+    chatgpt.stdout.write('Logged in using ChatGPT\n');
+    mockedSpawn.mockReturnValueOnce(chatgpt as never);
+    expect((await new CodexProvider().auth()).authenticated).toBe(true);
   });
 
   it('translates JSONL lifecycle, file changes and usage into Shuriken run events', async () => {
