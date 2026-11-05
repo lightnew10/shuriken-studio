@@ -6,6 +6,7 @@ import {
   truncateCollabHistory, validChatText, validCollabName, validRelayUrl,
   type CollabChatEntry, type CollabConnection, type CollabPayload, type CollabPeer,
   type CollabRole, type CollabServerFrame, type CollabClientFrame,
+  type CollabTaskSummary, type CollabDirectorSummary,
 } from '@shared/collaboration';
 
 type Session = {
@@ -22,6 +23,8 @@ export interface CollaborationStatus {
   selfId: string | null;
   messages: CollabChatEntry[];
   remoteProject: { name: string; projectId: string | null; taskCount: number } | null;
+  remoteTasks: CollabTaskSummary[];
+  remoteDirector: CollabDirectorSummary[];
   hostOnline: boolean;
   reconnectSeconds: number | null;
   error: string | null;
@@ -35,6 +38,8 @@ export interface CollaborationDeps {
   getName: () => string | null;
   saveName: (name: string) => void;
   localProject: () => { name: string; projectId: string | null; taskCount: number };
+  localTasks: () => CollabTaskSummary[];
+  localDirector: () => CollabDirectorSummary[];
 }
 
 /**
@@ -49,6 +54,8 @@ export class CollaborationService {
   private selfId: string | null = null;
   private chat: CollabChatEntry[] = [];
   private remoteProject: CollaborationStatus['remoteProject'] = null;
+  private remoteTasks: CollabTaskSummary[] = [];
+  private remoteDirector: CollabDirectorSummary[] = [];
   private lastError: string | null = null;
   private lostAt: number | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -66,6 +73,8 @@ export class CollaborationService {
       invitation: this.session?.role === 'host' ? this.session.invitation : null,
       peers: [...this.peers], selfId: this.selfId, messages: [...this.chat],
       remoteProject: this.remoteProject,
+      remoteTasks: [...this.remoteTasks],
+      remoteDirector: [...this.remoteDirector],
       hostOnline: this.state === 'connected' && this.peers.some((peer) => peer.role === 'host'),
       reconnectSeconds: this.lostAt === null ? null : Math.max(0, Math.ceil((COLLAB_RECONNECT_MS - (Date.now() - this.lostAt)) / 1000)),
       error: this.lastError, remoteAgentsEnabled: false,
@@ -125,6 +134,8 @@ export class CollaborationService {
     this.retry = 0;
     this.chat = [];
     this.remoteProject = null;
+    this.remoteTasks = [];
+    this.remoteDirector = [];
     this.lastError = null;
     this.changed();
     return this.status();
@@ -141,6 +152,33 @@ export class CollaborationService {
     };
     this.transmit({ kind: 'chat', message });
     return message;
+  }
+
+  /** Share read-only task status; guests cannot mutate host tasks with this protocol. */
+  shareTask(task: CollabTaskSummary): void {
+    if (this.session?.role !== 'host' || this.state !== 'connected') return;
+    this.transmit({ kind: 'task-batch', tasks: [task] });
+  }
+  removeTask(id: string): void {
+    if (this.session?.role !== 'host' || this.state !== 'connected') return;
+    this.transmit({ kind: 'task-remove', id });
+  }
+  /** Only visible Director chat text. Never tool arguments, attachments or provider credentials. */
+  shareDirector(message: CollabDirectorSummary): void {
+    if (this.session?.role !== 'host' || this.state !== 'connected') return;
+    this.transmit({ kind: 'director-batch', messages: [message] });
+  }
+  /** An authoritative snapshot, sent on join/rejoin and when the host switches projects. */
+  shareSnapshot(to?: string): void {
+    if (this.session?.role !== 'host' || this.state !== 'connected') return;
+    const tasks = this.deps.localTasks().slice(-200);
+    const messages = this.deps.localDirector().slice(-60);
+    this.transmit({ kind: 'task-batch', tasks: [], reset: true }, to);
+    for (let i = 0; i < tasks.length; i += 30)
+      this.transmit({ kind: 'task-batch', tasks: tasks.slice(i, i + 30) }, to);
+    this.transmit({ kind: 'director-batch', messages: [], reset: true }, to);
+    for (let i = 0; i < messages.length; i += 12)
+      this.transmit({ kind: 'director-batch', messages: messages.slice(i, i + 12) }, to);
   }
 
   /** Host advertises the project metadata, never file paths or credentials. */
@@ -161,6 +199,8 @@ export class CollaborationService {
     this.chat = [];
     this.peers = [];
     this.remoteProject = null;
+    this.remoteTasks = [];
+    this.remoteDirector = [];
     this.changed();
   }
   private changed(): void { this.deps.bus.emit('collaboration.changed', {}); }
@@ -320,6 +360,20 @@ export class CollaborationService {
       for (let offset = 0; offset < history.length; offset += 20)
         this.transmit({ kind: 'history', messages: history.slice(offset, offset + 20) }, frame.from.id);
       this.shareProject();
+      this.shareSnapshot(frame.from.id);
+    } else if (data.kind === 'task-batch' && sourceHost && this.session?.role === 'guest') {
+      const map = new Map((data.reset ? [] : this.remoteTasks).map((t) => [t.id, t]));
+      for (const task of data.tasks) map.set(task.id, task);
+      this.remoteTasks = [...map.values()].slice(-200);
+      this.changed();
+    } else if (data.kind === 'task-remove' && sourceHost && this.session?.role === 'guest') {
+      this.remoteTasks = this.remoteTasks.filter((task) => task.id !== data.id);
+      this.changed();
+    } else if (data.kind === 'director-batch' && sourceHost && this.session?.role === 'guest') {
+      const map = new Map((data.reset ? [] : this.remoteDirector).map((m) => [m.id, m]));
+      for (const message of data.messages) map.set(message.id, message);
+      this.remoteDirector = [...map.values()].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)).slice(-80);
+      this.changed();
     } else if (data.kind === 'history' && sourceHost && this.session?.role === 'guest') {
       for (const message of data.messages) this.addMessage(message);
       this.chat.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
