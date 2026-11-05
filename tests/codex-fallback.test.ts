@@ -57,6 +57,19 @@ describe('Claude -> Codex quota fallback', () => {
     expect(t.registry.forRole('critic').id).toBe('codex');
   });
 
+  it('persists distinct Codex models by tier and rejects Astra', () => {
+    const t = setup();
+    t.registry.setCodexModels({ fast: 'mini-model', balanced: 'balanced-model', deep: 'deep-model' });
+    const reopened = new ProviderRegistry(t.db);
+    reopened.register(provider('codex'));
+    expect(reopened.codexModels()).toEqual({
+      fast: 'mini-model', balanced: 'balanced-model', deep: 'deep-model',
+    });
+    expect(() => t.registry.setCodexModels({ fast: 'mini-model', balanced: 'astra', deep: 'deep-model' }))
+      .toThrow(/Astra/);
+    expect(t.registry.codexModels().balanced).toBe('balanced-model');
+  });
+
   it("persists the user\'s opt-in across registry instances", () => {
     const t = setup();
     t.registry.setCodexFallbackEnabled(true);
