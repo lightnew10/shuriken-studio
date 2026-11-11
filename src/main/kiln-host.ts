@@ -144,7 +144,7 @@ export function isKilnOrigin(url: string, rt: KilnRuntime | null): boolean {
   if (!rt) return false;
   try {
     const u = new URL(url);
-    return u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost') && Number(u.port) === rt.port;
+    return u.origin === `http://127.0.0.1:${rt.port}` && !u.username && !u.password && (u.pathname === '/' || u.pathname === '/auth');
   } catch {
     return false;
   }

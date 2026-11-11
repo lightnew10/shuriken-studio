@@ -71,7 +71,7 @@ function usable(runs: RunRow[], run: RunRow | undefined, providerId: string, app
   return chain < MAX_CHAIN;
 }
 
-const TURN_LIMIT_RX = /maximum number of turns|max(imum)?[_ ]turns/i;
+const TURN_LIMIT_RX = /maximum number of (turns|tool calls)|max(imum)?[_ ]turns/i;
 /** A run cut off by the account's usage limit (the provider adapter's wording, see claude-runner.ts). */
 const USAGE_LIMIT_RX = /rate.?limit|\b429\b|usage limit|overloaded|hit your (session|weekly|usage|daily) limit|(session|weekly) limit|limit reached|resets \d{1,2}(:\d{2})?\s*(am|pm)/i;
 /** Failures of a run that finished its work but not its report (see Orchestrator.doWork/checkCompletion). */

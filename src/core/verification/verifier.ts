@@ -104,21 +104,27 @@ type Watcher = PerfMethod | PlaytestMethod;
 const isWatcher = (m: VerificationMethod): m is Watcher => m.kind === 'perf' || (m.kind === 'playtest' && !m.luau && !m.clientLuau);
 
 /** A perf check's verdict from what its probe returned (`jsonText` null: it could not be measured; `failText` says why). */
-function judgePerf(m: PerfMethod, jsonText: string | null, failText: string): { passed: boolean; output: string; stats: { heartbeatMs?: number; physicsStepMs?: number; memoryMb?: number; instances?: number } } {
+export function judgePerf(m: PerfMethod, jsonText: string | null, failText: string): { passed: boolean; output: string; stats: { heartbeatMs?: number; physicsStepMs?: number; memoryMb?: number; instances?: number } } {
   let stats: { heartbeatMs?: number; physicsStepMs?: number; memoryMb?: number; instances?: number } = {};
   try {
-    stats = jsonText ? JSON.parse(jsonText) : {};
-  } catch {
-    stats = {};
-  }
+    const parsed: unknown = jsonText ? JSON.parse(jsonText) : null;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const raw = parsed as Record<string, unknown>;
+      for (const key of ['heartbeatMs', 'physicsStepMs', 'memoryMb', 'instances'] as const) {
+        const value = raw[key];
+        if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && (key !== 'instances' || Number.isInteger(value))) stats[key] = value;
+      }
+    }
+  } catch { /* Unparseable output has no usable measurements. */ }
   const over: string[] = [];
   if (m.maxHeartbeatMs !== undefined && (stats.heartbeatMs ?? 0) > m.maxHeartbeatMs) over.push(`heartbeat ${stats.heartbeatMs?.toFixed(2)} ms > ${m.maxHeartbeatMs}`);
   if (m.maxPhysicsStepMs !== undefined && (stats.physicsStepMs ?? 0) > m.maxPhysicsStepMs) over.push(`physics step ${stats.physicsStepMs?.toFixed(2)} ms > ${m.maxPhysicsStepMs}`);
   if (m.maxInstances !== undefined && (stats.instances ?? 0) > m.maxInstances) over.push(`instances ${stats.instances} > ${m.maxInstances}`);
-  const measured = jsonText !== null;
+  const required = [m.maxHeartbeatMs !== undefined ? 'heartbeatMs' : null, m.maxPhysicsStepMs !== undefined ? 'physicsStepMs' : null, m.maxInstances !== undefined ? 'instances' : null].filter(Boolean) as Array<keyof typeof stats>;
+  const measured = jsonText !== null && required.length > 0 && required.every((key) => stats[key] !== undefined);
   const passed = measured && over.length === 0;
   const memory = m.maxMemoryMb !== undefined ? `\n${MEMORY_NOT_JUDGED} (maxMemoryMb ${m.maxMemoryMb} ignored).` : '';
-  const output = measured ? `${passed ? 'Within budget' : `Over budget: ${over.join('; ')}`} — ${JSON.stringify(stats)}${memory}` : `Could not measure: ${failText.slice(0, 400)}`;
+  const output = measured ? `${passed ? 'Within budget' : `Over budget: ${over.join('; ')}`} — ${JSON.stringify(stats)}${memory}` : `Could not verify performance: ${required.length ? 'required metrics missing or invalid' : 'no supported performance threshold supplied'}. ${failText.slice(0, 400)}`.trimEnd();
   return { passed, output, stats };
 }
 

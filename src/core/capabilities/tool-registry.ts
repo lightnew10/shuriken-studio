@@ -5,9 +5,16 @@ import type { ScopedLogger } from '../log';
 import { decideToolCall, type PermissionClass, type PolicyDecision } from '../permissions/policy';
 import { errorMessage } from '../log';
 import { withStudioCaller } from '../roblox/studio-context';
+import type { BuiltinToolClass, PermissionRequest, PermissionDecision } from '../providers/types';
 
 /** Who is calling a tool. Resolved from the MCP bearer token or supplied by the UI/system. */
 export interface CallerContext {
+  projectRoot?: string;
+  executeCommand?: (command: string, cwd: string, signal: AbortSignal, timeoutMs: number) => Promise<{ ok: boolean; output: string; error?: string }>;
+  builtinTools?: readonly BuiltinToolClass[];
+  builtinPermission?: (req: PermissionRequest) => Promise<PermissionDecision>;
+  runSignal?: AbortSignal;
+  fileChange?: (state: 'started' | 'completed' | 'failed', paths: string[]) => void;
   kind: 'agent' | 'ui' | 'system' | 'external' | 'probe';
   runId: string | null;
   taskId: string | null;
@@ -57,6 +64,8 @@ export interface ToolInvocation<A> {
 }
 
 export interface ToolDefinition<S extends z.ZodRawShape = z.ZodRawShape> {
+  builtinClass?: BuiltinToolClass;
+  providerScope?: 'codex-only' | 'exclude-codex';
   name: string;
   title: string;
   description: string;
@@ -114,6 +123,13 @@ export interface CapabilityObserver {
  * The MCP server and the UI both call tools through `invoke`.
  */
 export class ToolRegistry {
+  private readonly approvalStops = new WeakMap<CallerContext, Set<string>>();
+  private stopApprovalRetries(caller: CallerContext, tool: string): void {
+    if (caller.providerId !== 'codex') return;
+    const stopped = this.approvalStops.get(caller) ?? new Set<string>();
+    stopped.add(tool);
+    this.approvalStops.set(caller, stopped);
+  }
   private readonly tools = new Map<string, ToolDefinition<any>>();
   private audit: AuditService | null = null;
 
@@ -147,6 +163,11 @@ export class ToolRegistry {
   }
 
   private isVisible(t: ToolDefinition, caller: CallerContext): boolean {
+    if (t.providerScope === 'codex-only' && caller.providerId !== 'codex') return false;
+    if ((t.providerScope === 'exclude-codex' || t.capability === 'app.plugins') && caller.providerId === 'codex') return false;
+    if (t.builtinClass && caller.providerId !== 'codex') return false;
+    if (t.builtinClass === 'shell' && !caller.executeCommand) return false;
+    if (t.builtinClass && (!caller.builtinTools?.includes(t.builtinClass) || !caller.builtinPermission)) return false;
     if (caller.allowedTools && !caller.allowedTools.has(t.name)) return false;
     if (caller.hiddenTools?.has(t.name)) return false;
     if (t.callerKinds && !t.callerKinds.includes(caller.kind)) return false;
@@ -155,6 +176,8 @@ export class ToolRegistry {
   }
 
   async invoke(name: string, rawArgs: unknown, caller: CallerContext, signal: AbortSignal = new AbortController().signal, progress?: ToolProgress): Promise<ToolOutput> {
+    if (caller.runSignal) signal = AbortSignal.any([signal, caller.runSignal]);
+    if (signal.aborted) return errorOutput('Run stopped');
     const def = this.tools.get(name);
     if (!def || !this.isVisible(def, caller)) {
       return errorOutput(`Unknown or unavailable tool: ${name}`);
@@ -162,6 +185,9 @@ export class ToolRegistry {
     // A call outside the caller's field is refused before anything else is looked at (whether the tool could run or not).
     const refusal = caller.refuses?.(name, rawArgs ?? {});
     if (refusal) return errorOutput(refusal);
+    if (this.approvalStops.get(caller)?.size && def.permission !== 'read' && def.permission !== 'roblox_read') {
+      return errorOutput('Approval was not granted. Continue with read-only work and do not try a different tool for the same effect.');
+    }
     const avail = def.available?.();
     if (avail && !avail.ok) {
       this.observer.record(def.capability, false, avail.reason ?? 'unavailable');
@@ -170,6 +196,15 @@ export class ToolRegistry {
     const parsed = (def.strict ? z.strictObject(def.input) : z.object(def.input)).safeParse(rawArgs ?? {});
     if (!parsed.success) {
       return errorOutput(`Invalid arguments for ${name}: ${parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`);
+    }
+
+    if (def.builtinClass) {
+      const args = parsed.data as Record<string, unknown>;
+      const decision = await caller.builtinPermission!({ tool: name, toolClass: def.builtinClass, input: { ...args, ...(typeof args.path === 'string' ? { file_path: args.path } : {}) } });
+      if (!decision.allow) {
+        if (decision.message.startsWith('Needs human approval')) this.stopApprovalRetries(caller, name);
+        return errorOutput(decision.message);
+      }
     }
 
     const decision: PolicyDecision = caller.kind === 'ui' ? { outcome: 'allow', notify: false, reason: 'user action', rule: null } : decideToolCall({ permission: def.permission, tool: name, title: def.title, args: parsed.data }, this.policy.rules(), this.policy.mode?.() ?? 'ask');
@@ -193,11 +228,16 @@ export class ToolRegistry {
     if (decision.outcome === 'ask') {
       const approved = await this.policy.requestApproval(caller, name, decision.reason, parsed.data);
       if (!approved) {
+        this.stopApprovalRetries(caller, name);
         this.audit?.endToolCall(auditId!, { status: 'denied', error: `awaiting approval: ${decision.reason}`, durationMs: 0 });
         return errorOutput(
           `Requires human approval: ${decision.reason}. An escalation has been filed for the user. Do not retry this call; continue with work that does not depend on it, and mention it in your final report.`,
         );
       }
+    }
+    if (signal.aborted) {
+      this.audit?.endToolCall(auditId!, { status: 'denied', error: 'Run stopped', durationMs: 0 });
+      return errorOutput('Run stopped');
     }
     if (decision.autoApproved) {
       // Autonomous mode: what would have asked the user runs, and the timeline says it was auto-approved.

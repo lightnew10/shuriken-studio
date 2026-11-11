@@ -227,6 +227,8 @@ export class KilnWorkspace implements ModelingWorkspace {
     mkdirSync(this.dir, { recursive: true });
     try {
       this.parts = JSON.parse(readFileSync(this.partsFile, 'utf8')) as ExportedPart[];
+      const store = new ModelStore(root);
+      if (this.parts.some((part) => store.get(part.name)?.exportError)) this.parts = [];
     } catch {
       this.parts = [];
     }
@@ -346,20 +348,28 @@ export class KilnWorkspace implements ModelingWorkspace {
    * export runs on Kiln's baked Roblox copy of the model (one atlas per material, see KilnModeling.exportBaked),
    * in Shuriken's own Blender; older Kiln, or a bake that isn't available, exports the live scene inside Kiln's Blender.
    */
-  private async publish(id: string): Promise<{ size: [number, number, number] | null; notes: string[] }> {
+  private async publish(id: string, onSaved?: () => void): Promise<{ size: [number, number, number] | null; notes: string[]; saved: boolean }> {
+    try { return await this.exportCurrent(id, onSaved); }
+    catch (e) { this.invalidateExport((e as Error).message); throw e; }
+  }
+
+  private async exportCurrent(id: string, onSaved?: () => void): Promise<{ size: [number, number, number] | null; notes: string[]; saved: boolean }> {
     const k = this.svc.kiln;
     mkdirSync(join(this.root, 'models'), { recursive: true });
+    let saved = false;
     try {
       const f = (await k.get(`/api/v1/projects/${id}/file`)) as { scene?: string; version?: number };
       if (f.scene && existsSync(f.scene)) {
         copyFileSync(f.scene, this.blend);
+        saved = true;
+        onSaved?.();
         this.writeLink({ blendMtime: mtime(this.blend) });
       }
       if (typeof f.version === 'number') this.version = f.version;
     } catch (e) {
       this.svc.log.warn(`Copying ${this.name}.blend from Kiln failed`, (e as Error).message);
     }
-    if (!this.svc.exportDir) return { size: null, notes: [] };
+    if (!this.svc.exportDir) throw new Error('Roblox exporter unavailable');
     type Exported = { ok?: boolean; error?: string; parts?: ExportedPart[]; size?: [number, number, number]; anim_fp?: string | null; notes?: string[]; maps_fp?: string };
     let r: Exported | null = null;
     let bakeNote: string | null = null;
@@ -382,19 +392,34 @@ export class KilnWorkspace implements ModelingWorkspace {
     r ??= (await k.post(`/api/v1/projects/${id}/ext`, { dir: this.svc.exportDir, module: 'roblox_export', func: 'export', args: { dir: join(this.root, 'models'), name: this.name } }, 180_000)) as Exported;
     if (!r.ok) {
       this.svc.log.warn(`Exporting ${this.name} for Roblox (in Kiln) failed`, r.error);
-      return { size: null, notes: [] };
+      this.parts = [];
+      throw new Error(`Python may have changed the scene, but Roblox export failed: ${r.error ?? 'unknown export error'}. Previous parts are not current.`);
     }
     if (bakeNote) r.notes = [bakeNote, ...(r.notes ?? [])];
     const done = this.recordExport(r);
     // A model with sockets (a family of one): where Kiln put them, read back for the game's spec.
     this.svc.readBackSingle(this.root, this.name, manifest, r);
-    return done;
+    return { ...done, saved };
+  }
+
+  private invalidateExport(error: string): void {
+    const store = new ModelStore(this.root);
+    const single = store.get(this.name);
+    for (const part of [...(single ? [single] : []), ...store.parts(this.name)]) {
+      if (part.source === 'blender') store.save({ ...part, valid: false, exportError: error }, { deferBuilder: true });
+    }
+    this.parts = [];
+    this.svc.bus?.emit('assets.changed', {});
   }
 
   /** Records an export of this model: its Roblox parts, clips and fingerprints. */
   recordExport(r: { parts?: ExportedPart[]; size?: [number, number, number]; anim_fp?: string | null; notes?: string[]; maps_fp?: string }): { size: [number, number, number] | null; notes: string[] } {
     const parts = r.parts ?? [];
-    recordParts(this.root, this.name, parts, this.parts, this.svc.bus);
+    let previous = this.parts;
+    if (!previous.length) {
+      try { previous = JSON.parse(readFileSync(this.partsFile, 'utf8')) as ExportedPart[]; } catch { /* first export */ }
+    }
+    recordParts(this.root, this.name, parts, previous, this.svc.bus);
     this.parts = parts;
     writeFileSync(this.partsFile, JSON.stringify(parts));
     this.clips = recordClips(this.root, this.name, this.svc.bus);
@@ -442,16 +467,29 @@ export class KilnWorkspace implements ModelingWorkspace {
         this.version = r.version ?? this.version;
         let size: [number, number, number] | null = null;
         let notes: string[] = [];
+        let saved = false;
+        let exportStatus: ExecResult['exportStatus'] = 'unchanged';
+        let exportError: string | null = null;
         // Kiln's own change flag, or a texture retuned under the same names (which that flag may not see).
         const changed = !!r.changed || (r.ok && (await this.mapsChanged(id)));
         if (changed) {
-          const published = await this.publish(id);
-          size = published.size;
-          notes = published.notes;
+          try {
+            const published = await this.publish(id, () => { saved = true; });
+            size = published.size;
+            notes = published.notes;
+            saved = published.saved;
+            exportStatus = 'current';
+          } catch (e) {
+            exportStatus = 'failed';
+            exportError = (e as Error).message;
+          }
         }
         return {
-          ok: r.ok,
-          error: r.error ?? null,
+          ok: r.ok && !exportError,
+          pythonOk: r.ok,
+          saved,
+          exportStatus,
+          error: [r.error, exportError].filter(Boolean).join('\n') || null,
           output: r.output ?? '',
           added: r.added ?? [],
           removed: r.removed ?? [],
@@ -693,7 +731,7 @@ export class KilnModeling implements ModelingBackend {
       /** How long a bake waits for Kiln's copilot to finish (409), in ms (tests shorten it). */
       bakeWaitMs?: number;
       /** Starting Kiln when a build needs a model and it isn't running (absent: never started, e.g. tests). */
-      launch?: { configured: () => string; allowed: () => boolean; spawn?: (exe: string) => void; timeoutMs?: number; pollMs?: number };
+    launch?: { configured: () => string; allowed: () => boolean; spawn?: (exe: string) => void; timeoutMs?: number; pollMs?: number; findExecutable?: (configured: string | null, runtimeFile: string) => string | null };
       /** A short status line in the project's chat (`id`: the line to rewrite instead of adding one); returns the line's id. */
       note?: (text: string, id?: string | null) => string | null;
       /** `kilnBuildsAtOnce` from Settings: how many Kiln builds run at once (the rest queue). */

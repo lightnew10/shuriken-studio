@@ -19,6 +19,7 @@ export const COST_CATEGORIES: ReadonlyArray<{ id: CostCategoryId; label: string 
 ];
 
 export interface BuildCost {
+  unknownRuns?: number;
   /** Every run and booked call of the project, Kiln's builds included, in US dollars at API prices. */
   totalUsd: number;
   /** Only the groups that have something, the most expensive first. */

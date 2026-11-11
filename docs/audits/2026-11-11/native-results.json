@@ -1,0 +1,20 @@
+{
+  "platform": "win32",
+  "spaceArgument": {
+    "exitCode": 0,
+    "received": [
+      "C:\\Audit",
+      "Folder\\schema.json"
+    ]
+  },
+  "cancellation": {
+    "descendantAliveAfterWrapperKill": true
+  },
+  "authOutputChannel": {
+    "exitCode": 0,
+    "stdoutBytes": 0,
+    "statusOnStderr": true,
+    "apiKeyOnStdout": false,
+    "apiKeyOnStderr": false
+  }
+}

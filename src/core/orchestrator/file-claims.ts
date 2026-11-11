@@ -1,9 +1,9 @@
 import { statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join } from 'node:path';
 import type { Task } from '@shared/domain';
 import type { ProjectContext } from '../projects/project-service';
 import { roleLabel } from '../agents/roles';
-import { editedPath } from '../roblox/code-sync';
+import { filesEditedBy } from '../roblox/code-sync';
 
 /**
  * What a task's `files` keep apart. Two tasks never run at the same time when they claim the SAME FILE; a folder
@@ -81,13 +81,7 @@ export function editsInFlight(p: ProjectContext, exceptTaskId: string): Map<stri
   const out = new Map<string, { file: string; taskId: string }>();
   const runs = p.store.all<{ id: string; task_id: string }>("SELECT id, task_id FROM runs WHERE status IN ('starting', 'running') AND task_id IS NOT NULL AND task_id != ?", [exceptTaskId]);
   for (const r of runs) {
-    for (const c of p.audit.toolCalls({ runId: r.id, limit: 400 })) {
-      if (!/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.tool)) continue;
-      const fp = editedPath(c.args);
-      if (!fp) continue;
-      const rel = relative(p.root, resolve(p.root, fp)).replaceAll('\\', '/');
-      if (!rel.startsWith('..')) out.set(claimKey(rel), { file: rel, taskId: r.task_id });
-    }
+    for (const file of filesEditedBy(p, r.id)) out.set(claimKey(file), { file, taskId: r.task_id });
   }
   return out;
 }

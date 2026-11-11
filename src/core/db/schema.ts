@@ -497,4 +497,10 @@ CREATE TABLE IF NOT EXISTS cost_entries (
 CREATE INDEX IF NOT EXISTS cost_entries_at ON cost_entries(at);
 `,
   },
+  {
+    version: 12,
+    name: 'provider-session-contract',
+    sql: `ALTER TABLE runs ADD COLUMN provider_session_meta TEXT;
+ALTER TABLE runs ADD COLUMN cost_known INTEGER NOT NULL DEFAULT 1;`,
+  },
 ];

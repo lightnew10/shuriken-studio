@@ -125,6 +125,7 @@ export function providerCheck(provider: IAgentProvider, registry: CapabilityRegi
       const quick = await diag.quickChecks();
       const results: HealthCheckResult[] = quick.map((q) => ({ id: q.id, name: q.name, status: q.status, message: q.message, durationMs: q.durationMs, data: q.data }));
       const verified: Partial<Record<ProviderCapabilityKey, boolean>> = {};
+      const available = Object.assign({}, ...quick.map((q) => q.available ?? {})) as Partial<Record<ProviderCapabilityKey, boolean>>;
       const installed = quick.every((q) => q.status === 'healthy');
       if (deep && installed) {
         const ctx = await probeCtx();
@@ -145,6 +146,9 @@ export function providerCheck(provider: IAgentProvider, registry: CapabilityRegi
         } else if (!installed) {
           status = 'unavailable';
           detail = 'Provider not installed or not runnable';
+        } else if (available[key] === false) {
+          status = 'unavailable';
+          detail = 'Declared by the adapter; local prerequisites are missing';
         } else if (v === true) {
           status = 'healthy';
           detail = 'Verified by live probe';
@@ -153,7 +157,7 @@ export function providerCheck(provider: IAgentProvider, registry: CapabilityRegi
           detail = 'Declared by the adapter but the live probe could not confirm it';
         } else {
           status = 'healthy';
-          detail = deep ? 'Declared by adapter (not probed)' : 'Declared by adapter; run deep diagnostics to verify';
+          detail = available[key] === true ? 'Local prerequisites detected; not verified by a live call' : 'Declared by adapter; run deep diagnostics to verify';
         }
         registry.upsert({ id: `${provider.id}.${key}`, integration: `provider:${provider.id}`, name: key, status, detail, version, description: `${provider.displayName}: ${key}` });
       }

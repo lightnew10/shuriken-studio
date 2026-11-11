@@ -106,6 +106,9 @@ export interface TextureMaps {
 
 export interface ExecResult {
   ok: boolean;
+  pythonOk?: boolean;
+  saved?: boolean;
+  exportStatus?: 'current' | 'failed' | 'unchanged';
   error: string | null;
   output: string;
   added: string[];

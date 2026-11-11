@@ -79,6 +79,13 @@ export interface SubagentSpec {
 }
 
 export interface AgentRunRequest {
+  /** Persisted compatibility boundary, never OAuth credentials. */
+  sessionMetadata?: ProviderSessionMetadata | null;
+  maxDurationMs?: number;
+  /** Immediately closes the app's tool gate if the provider stops itself. */
+  stopTools?: () => void;
+  permissionFingerprint?: string;
+  maxTokens?: number;
   runId: string;
   role: string;
   /** Role instructions (provider-neutral prose). */
@@ -117,6 +124,7 @@ export interface AgentRunRequest {
 export type CompletionErrorKind = 'max_turns' | 'budget' | 'execution' | 'auth' | 'rate_limit' | 'interrupted' | 'output_schema' | 'environment' | 'unknown';
 
 export type AgentEvent =
+  | { type: 'file_change'; state: 'started' | 'completed' | 'failed'; paths: string[] }
   | {
       type: 'started';
       providerSessionId: string | null;
@@ -125,6 +133,7 @@ export type AgentEvent =
       tools: string[];
       toolServers: Array<{ name: string; status: string }>;
       authSource: string | null;
+      sessionMetadata?: ProviderSessionMetadata;
     }
   | { type: 'text'; text: string; partial: boolean }
   | { type: 'thinking'; text: string }
@@ -138,6 +147,8 @@ export type AgentEvent =
       resultText: string | null;
       structured: unknown | null;
       costUsd: number;
+      costKnown?: boolean;
+      sessionMetadata?: ProviderSessionMetadata;
       inputTokens: number;
       outputTokens: number;
       numTurns: number;
@@ -150,6 +161,14 @@ export type AgentEvent =
 export interface AgentRunHandle {
   readonly events: AsyncIterable<AgentEvent>;
   interrupt(): Promise<void>;
+}
+
+export interface ProviderSessionMetadata {
+  adapter: string;
+  account: string;
+  policy: string;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 export interface ProbeContext {
@@ -167,6 +186,8 @@ export interface ProbeResult {
   status: HealthStatus;
   message: string;
   durationMs: number;
+  /** Runtime prerequisites detected locally; does not prove an actual tool call. */
+  available?: Partial<Record<ProviderCapabilityKey, boolean>>;
   /** Capabilities this probe verified (true) or disproved (false). */
   verified?: Partial<Record<ProviderCapabilityKey, boolean>>;
   data?: unknown;
@@ -180,6 +201,7 @@ export interface IProviderDiagnostics {
 }
 
 export interface IAgentProvider {
+  executeCommand?(command: string, cwd: string, signal: AbortSignal, timeoutMs: number): Promise<{ ok: boolean; output: string; error?: string }>;
   readonly id: string;
   readonly displayName: string;
   /** Version of the adapter code; bump when the translation layer changes. */

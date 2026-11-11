@@ -1,4 +1,5 @@
 import { LINK_LOST } from './link/link-server';
+import { mutationsInFlight } from '../orchestrator/mutations';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -60,7 +61,7 @@ export interface PushOptions {
  */
 export function filesInFlight(p: ProjectContext, runId: string | null): string[] {
   const running = p.store.all<{ id: string }>("SELECT id FROM runs WHERE status IN ('starting', 'running') AND id != ?", [runId ?? '']);
-  return [...new Set(running.flatMap((r) => filesEditedBy(p, r.id)))];
+  return [...new Set([...mutationsInFlight(p.root, runId), ...running.flatMap((r) => filesEditedBy(p, r.id))])];
 }
 
 /**
@@ -88,12 +89,30 @@ export function editedPath(args: unknown): string | null {
 /** Repo-relative files a run has edited so far (its Edit/Write/MultiEdit calls in the audit). */
 export function filesEditedBy(p: ProjectContext, runId: string): string[] {
   const out = new Set<string>();
+  const add = (file: string) => {
+    const rel = relative(p.root, resolve(p.root, file)).replaceAll('\\', '/');
+    if (rel && rel !== '..' && !rel.startsWith('../')) out.add(rel);
+  };
+  for (const row of p.store.all<{ content: string }>("SELECT content FROM run_messages WHERE run_id = ? AND kind = 'system' AND content LIKE '%file_change%'", [runId])) {
+    try {
+      const event = JSON.parse(row.content) as { event?: string; state?: string; paths?: unknown[] };
+      if (event.event === 'file_change' && event.state !== 'failed') for (const path of event.paths ?? []) if (typeof path === 'string') add(path);
+    } catch { /* Older logs need not contain structured file events. */ }
+  }
   for (const c of p.audit.toolCalls({ runId, limit: 400 })) {
+    if (c.tool === 'Codex patch') {
+      for (const change of (c.args as { changes?: Array<{ path: string }> })?.changes ?? []) out.add(change.path.replaceAll('\\', '/'));
+      continue;
+    }
+    if (c.tool === 'workspace_write_file') {
+      const path = (c.args as { path?: string })?.path;
+      if (path) add(path);
+      continue;
+    }
     if (!/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(c.tool)) continue;
     const fp = editedPath(c.args);
     if (!fp) continue;
-    const rel = relative(p.root, resolve(p.root, fp)).replaceAll('\\', '/');
-    if (!rel.startsWith('..')) out.add(rel);
+    add(fp);
   }
   return [...out];
 }
@@ -621,6 +640,8 @@ export class CodeSync {
    * wait. A push that could not get Studio in time comes back with `busy` set and nothing pushed.
    */
   async push(root: string, map: SyncMap, opts: PushOptions = {}): Promise<SyncReport> {
+    const inFlight = mutationsInFlight(root, opts.owner ?? currentStudioCaller()?.owner ?? null);
+    if (inFlight.includes('*')) return { ...emptyReport(), busy: 'A project command is still mutating files.' };
     const lease = this.lease;
     if (!lease) {
       const done = await this.turn(root, false);
@@ -687,10 +708,12 @@ export class CodeSync {
   }
 
   private async pushNow(root: string, map: SyncMap, opts: PushOptions): Promise<SyncReport> {
+    const skipped = [...(opts.skip ?? []), ...mutationsInFlight(root, opts.owner ?? currentStudioCaller()?.owner ?? null)];
+    if (skipped.includes('*')) return { ...emptyReport(), busy: 'A project command owns the mutation lease; sync waits until it finishes.' };
     const t0 = Date.now();
     const report = emptyReport();
     const base = new SyncBase(root);
-    const skip = new Set((opts.skip ?? []).map((f) => f.replaceAll('\\', '/').toLowerCase()));
+    const skip = new Set(skipped.map((f) => f.replaceAll('\\', '/').toLowerCase()));
     const all = planSync(root, map).filter((e) => {
       if (opts.only && !opts.only.includes(e.file)) return false;
       if (skip.has(e.file.toLowerCase())) {

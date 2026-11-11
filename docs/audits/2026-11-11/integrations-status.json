@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-11",
+  "roblox": {
+    "processPresent": true,
+    "mcpListSucceeded": true,
+    "connectedInstances": 1,
+    "mode": "Edit",
+    "availableDataModels": ["Edit"],
+    "mutationsExecuted": false,
+    "shurikenEndToEndVerified": false
+  },
+  "blender": {
+    "processPresent": true,
+    "mcpSceneInfoSucceeded": false,
+    "error": "Could not connect to Blender. Make sure the Blender addon is running.",
+    "mutationsExecuted": false
+  },
+  "kilnModeler": {
+    "processPresent": true,
+    "runtimeFound": true,
+    "appEndpointResponded": true,
+    "version": "0.8.8",
+    "blenderReported": true,
+    "mutationsExecuted": false,
+    "exportVerified": false
+  },
+  "note": "The separately exposed Kiln MCP server concerns 3D printing and was not used to qualify the Shuriken modeler. No account identifiers, invitation keys, ports or tokens are recorded here."
+}

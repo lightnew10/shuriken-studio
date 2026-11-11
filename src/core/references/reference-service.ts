@@ -455,7 +455,7 @@ export class ReferenceService {
       tags: (Array.isArray(o.tags) ? o.tags : []).filter((t): t is string => (REFERENCE_TAGS as readonly string[]).includes(t)),
       at: nowIso(),
       runId: outcome.run.id,
-      costUsd: outcome.completion.costUsd ?? null,
+      costUsd: outcome.completion.costKnown === false ? null : outcome.completion.costUsd ?? null,
       imagesShown: images.length,
     };
     const fresh = this.store(p).get(rec.id);

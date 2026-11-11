@@ -1,306 +1,226 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { AsyncQueue } from '../../util/async';
 import type { ModelTier } from '@shared/domain';
-import { isAllowedCodexModel } from './codex-models';
-import type {
-  AgentEvent, AgentRunHandle, AgentRunRequest, CompletionErrorKind,
-  IAgentProvider, IProviderDiagnostics, ProbeResult, ProviderAuthStatus,
-  ProviderCapabilities, ProviderDetection,
-} from '../types';
+import { codexModelOptions, effectiveCodexEffort, isAllowedCodexModel, type ModelListResponse } from './codex-models';
+import { CodexAppServer, isolatedCodexOverrides, verifyCodexIsolation } from './app-server';
+import { codexExecutable, codexVersion, executeCodexCommand } from './codex-process';
+import { restoreOptionalFields, strictCodexSchema } from './structured';
+import type { AgentEvent, AgentRunHandle, AgentRunRequest, CompletionErrorKind, IAgentProvider, IProviderDiagnostics, ProviderAuthStatus, ProviderCapabilities, ProviderDetection, ProviderSessionMetadata } from '../types';
 
-const RATE_LIMIT = /rate.?limit|usage limit|too many requests|quota|(?:session|weekly) limit|limit reached|\b429\b/i;
-const AUTH_ERROR = /not logged in|not authenticated|please run.*login|unauthorized|authentication required/i;
-const SHELL_ERROR = /not recognized as an internal or external command|command not found|ENOENT|spawn .* failed/i;
+const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const ADAPTER = 'codex-appserver-2';
+export const CODEX_RUN_LIMITS = { durationMs: 20 * 60_000, maxTokens: 200_000, stopGraceMs: 1500 };
 
-type CliEvent = {
-  type: string;
-  thread_id?: string;
-  usage?: { input_tokens?: number; cached_input_tokens?: number; output_tokens?: number };
-  error?: { message?: string };
-  message?: string;
-  item?: {
-    id?: string; type?: string; text?: string; status?: string;
-    command?: string; changes?: Array<{ path?: string; kind?: string }>;
-    server?: string; tool?: string; arguments?: unknown; result?: unknown;
-    error?: { message?: string }; output?: unknown;
-  };
-};
-
-/** Codex CLI uses ChatGPT OAuth by default. No API key is created or stored by Shuriken. */
+/** Codex manages the existing ChatGPT credentials; Shuriken never reads/copies auth.json. */
 export class CodexProvider implements IAgentProvider {
   readonly id = 'codex';
   readonly displayName = 'Codex (ChatGPT)';
-  readonly adapterVersion = '0.1.0';
-  readonly testedVersions: string[] = [];
-
-  constructor(private readonly selectedModel: (tier: ModelTier) => string = () => 'default') {}
-
-  private cli(programArgs: string[], opts: { cwd?: string; env?: Record<string, string> } = {}): ChildProcessWithoutNullStreams {
-    // On Windows, npm installs codex.cmd; use the command shell for that shim.
-    // The prompt is delivered via stdin, never interpolated into a shell command.
-    return spawn('codex', programArgs, {
-      cwd: opts.cwd,
-      env: { ...process.env, ...opts.env },
-      windowsHide: true,
-      shell: process.platform === 'win32',
-      stdio: 'pipe',
-    });
+  readonly adapterVersion = '2.0.0';
+  readonly testedVersions = ['0.166.0'];
+  executeCommand = executeCodexCommand;
+  constructor(private readonly selectedModel: (tier: ModelTier) => string = () => '', private readonly limits: () => { maxDurationMs: number; maxTokens: number } = () => ({ maxDurationMs: CODEX_RUN_LIMITS.durationMs, maxTokens: CODEX_RUN_LIMITS.maxTokens }), private readonly observeProcess?: (pid: number) => void) {}
+  async usage(): Promise<unknown> {
+    const server = new CodexAppServer();
+    try { await server.initialize(); return (await server.request('account/rateLimits/read')).rateLimits ?? null; }
+    finally { await server.close(); }
   }
-
-  private async commandOutput(args: string[], env?: Record<string, string>): Promise<{ ok: boolean; stdout: string; stderr: string }> {
-    return new Promise((resolve) => {
-      const child = this.cli(args, { env });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.on('data', (b: Buffer) => { stdout += b.toString('utf8'); });
-      child.stderr.on('data', (b: Buffer) => { stderr += b.toString('utf8'); });
-      let settled = false;
-      const done = (ok: boolean) => {
-        if (settled) return;
-        settled = true;
-        resolve({ ok, stdout: stdout.trim(), stderr: stderr.trim() });
-      };
-      child.on('error', (e) => { stderr += '\n' + e.message; done(false); });
-      child.on('close', (code) => done(code === 0));
-      const timeout = setTimeout(() => { child.kill(); done(false); }, 15_000);
-      child.on('close', () => clearTimeout(timeout));
-      child.on('error', () => clearTimeout(timeout));
-      child.stdin.on('error', () => undefined);
-      child.stdin.end();
-    });
-  }
-
   async detect(): Promise<ProviderDetection> {
-    const r = await this.commandOutput(['--version']);
-    const version = /\d+\.\d+\.\d+/.exec(r.stdout)?.[0] ?? null;
-    return {
-      installed: r.ok && !!version,
-      version,
-      executable: r.ok ? 'codex' : null,
-      detail: r.ok ? r.stdout : 'Codex CLI unavailable. Install @openai/codex and run codex login on this PC. ' + r.stderr,
-    };
+    try { const executable = codexExecutable(); return { installed: true, executable, version: codexVersion(executable), detail: 'Codex App Server available' }; }
+    catch (e) { return { installed: false, executable: null, version: null, detail: (e as Error).message }; }
   }
-
-  async auth(): Promise<ProviderAuthStatus> {
-    return this.authFor(null);
-  }
-
+  async auth(): Promise<ProviderAuthStatus> { return this.authFor(null); }
   async authFor(accountDir: string | null): Promise<ProviderAuthStatus> {
-    const env = accountDir ? { CODEX_HOME: accountDir } : undefined;
-    const result = await this.commandOutput(['login', 'status'], env);
-    return {
-      authenticated: result.ok && !/api key/i.test(result.stdout),
-      method: result.ok ? (/api key/i.test(result.stdout) ? 'api key (not permitted in subscription mode)' : 'Codex CLI login') : null,
-      account: null,
-      plan: null,
-      detail: result.ok && /api key/i.test(result.stdout)
-        ? 'Codex is using a paid API key. Run codex logout and sign in with a ChatGPT subscription instead.'
-        : result.ok ? result.stdout : 'Run codex login with your ChatGPT subscription. ' + (result.stderr || result.stdout),
-    };
+    if (accountDir) return { authenticated: false, method: null, account: null, plan: null, detail: 'Shuriken uses the existing ChatGPT login on this PC.' };
+    const server = new CodexAppServer();
+    try {
+      await server.initialize();
+      const { account } = await server.request('account/read', { refreshToken: false });
+      return { authenticated: account?.type === 'chatgpt', method: account?.type ?? null, account: account?.type === 'chatgpt' ? account.email ?? null : null, plan: account?.planType ?? null,
+        detail: account?.type === 'chatgpt' ? 'Existing ChatGPT login' : 'A ChatGPT login is required; API and unknown modes are refused.' };
+    } finally { await server.close(); }
   }
-
-  async signInCommand(accountDir: string): Promise<{ command: string; args: string[]; env: Record<string, string> } | null> {
-    const d = await this.detect();
-    if (!d.installed) return null;
-    // Use the existing Codex CLI OAuth flow. A separate CODEX_HOME isolates extra accounts.
-    return { command: 'codex', args: ['login'], env: accountDir ? { CODEX_HOME: accountDir } : {} };
-  }
-
-  accountEnv(accountDir: string): Record<string, string> {
-    return { CODEX_HOME: accountDir };
-  }
-
-  declaredCapabilities(): ProviderCapabilities {
-    return {
-      toolUse: true, mcp: true, mcpHttp: true,
-      subagents: false, parallelAgents: false,
-      fileEditing: true, terminal: true, streaming: true,
-      backgroundExecution: true, contextCompaction: false,
-      longRunningSessions: true, structuredOutput: true,
-      approvalWorkflow: false, sessionPersistence: true,
-      imageInput: true, imageOutput: false, interruption: true,
-      webResearch: true, costReporting: false, rateLimitReporting: false,
-    };
-  }
-
+  async signInCommand(accountDir: string): Promise<{ command: string; args: string[]; env: Record<string, string> } | null> { return accountDir ? null : { command: codexExecutable(), args: ['login'], env: {} }; }
   modelForTier(tier: ModelTier): string {
     const model = this.selectedModel(tier);
-    if (model === 'default') return 'default';
-    if (!isAllowedCodexModel(model)) throw new Error('Invalid or excluded Codex model: ' + model);
+    if (!model || model === 'default' || !isAllowedCodexModel(model)) throw new Error('Select an explicit non-Astra Codex model in Settings.');
     return model;
   }
-
-  diagnostics(): IProviderDiagnostics {
-    return {
-      quickChecks: async (): Promise<ProbeResult[]> => {
-        const start = Date.now();
-        const installed = await this.detect();
-        if (!installed.installed) return [{ id: 'codex.executable', name: 'Codex CLI', status: 'unavailable', message: installed.detail, durationMs: Date.now() - start }];
-        const auth = await this.auth();
-        return [
-          { id: 'codex.executable', name: 'Codex CLI', status: 'healthy', message: installed.detail, durationMs: Date.now() - start, data: { version: installed.version } },
-          { id: 'codex.auth', name: 'Codex login', status: auth.authenticated ? 'healthy' : 'needs_configuration', message: auth.detail, durationMs: Date.now() - start },
-        ];
-      },
-      // Live tool-use probes are intentionally not automatic: they spend the user's quota.
-      deepChecks: async () => [],
-    };
+  declaredCapabilities(): ProviderCapabilities {
+    return { toolUse: true, mcp: true, mcpHttp: true, subagents: false, parallelAgents: false, fileEditing: true, terminal: true, streaming: true, backgroundExecution: true, contextCompaction: false, longRunningSessions: true, structuredOutput: true, approvalWorkflow: true, sessionPersistence: true, imageInput: true, imageOutput: false, interruption: true, webResearch: false, costReporting: false, rateLimitReporting: true };
   }
-
+  diagnostics(): IProviderDiagnostics {
+    return { quickChecks: async () => {
+      const start = Date.now(), d = await this.detect();
+      if (!d.installed) return [{ id: 'codex.executable', name: 'Codex CLI', status: 'unavailable', message: d.detail, durationMs: Date.now() - start }];
+      const auth = await this.auth();
+      let terminal = false;
+      if (process.platform === 'win32') {
+        const server = new CodexAppServer();
+        try {
+          await server.initialize();
+          const { config } = await server.request('config/read', { includeLayers: false }, 4000);
+          terminal = config?.windows?.sandbox === 'elevated' && (await server.request('windowsSandbox/readiness', {}, 4000)).status === 'ready';
+        } catch { /* An unknown sandbox must not be reported available. */ }
+        finally { await server.close(); }
+      }
+      return [
+        { id: 'codex.executable', name: 'Codex App Server', status: 'healthy', message: d.detail, durationMs: Date.now() - start, data: { version: d.version }, available: { terminal } },
+        { id: 'codex.auth', name: 'ChatGPT login', status: auth.authenticated ? 'healthy' : 'needs_configuration', message: auth.detail, durationMs: Date.now() - start },
+      ];
+    }, deepChecks: async (ctx) => {
+      const start = Date.now(), nonce = randomUUID();
+      const probeServer = ctx.probeServer;
+      if (!probeServer || !ctx.waitForProbeNonce) return [];
+      let streamed = false, completed: Extract<AgentEvent, { type: 'completed' }> | undefined;
+      const run = this.run({
+        runId: `probe-${nonce}`, role: 'probe', cwd: ctx.cwd, modelTier: 'fast', effort: 'low',
+        instructions: 'Run only the Shuriken connection check.',
+        prompt: `Call the Shuriken MCP tool probe_submit with nonce "${nonce}". Then return the nonce as JSON.`,
+        builtinTools: [], toolServers: [{ ...probeServer, name: 'shuriken' }],
+        outputSchema: { type: 'object', properties: { nonce: { type: 'string' } }, required: ['nonce'], additionalProperties: false },
+        permission: async () => ({ allow: false, message: 'Only the probe tool is allowed.' }),
+        signal: ctx.signal, maxDurationMs: 60_000,
+      });
+      for await (const event of run.events) {
+        if (event.type === 'text' && event.partial) streamed = true;
+        if (event.type === 'completed') completed = event;
+      }
+      const structured = !!completed?.ok && (completed.structured as { nonce?: string } | null)?.nonce === nonce;
+      const observed = !!completed?.ok && await ctx.waitForProbeNonce(nonce, 3000);
+      return [{ id: 'codex.e2e', name: 'Codex MCP round trip', status: structured && observed ? 'healthy' : 'degraded', message: structured && observed ? 'Shuriken received the probe and Codex returned it as structured output' : completed?.error ?? 'Probe result could not be verified', durationMs: Date.now() - start, verified: { streaming: streamed, structuredOutput: structured, toolUse: observed, mcp: observed, mcpHttp: observed } }];
+    } };
+  }
   run(req: AgentRunRequest): AgentRunHandle {
     const events = new AsyncQueue<AgentEvent>();
-    const chosenModel = req.model ?? this.modelForTier(req.modelTier);
-    let child: ChildProcessWithoutNullStreams | null = null;
-    let interrupted = false;
-    const abort = () => {
+    let server: CodexAppServer | null = null, threadId: string | null = null, turnId: string | null = null;
+    let interrupted = false, errorKind: CompletionErrorKind | null = null;
+    let settle: ((error?: Error) => void) | null = null;
+    let stopping: Promise<void> | null = null;
+    const abort = () => stopping ??= (async () => {
       interrupted = true;
-      child?.kill();
-    };
-    req.signal.addEventListener('abort', abort, { once: true });
-    const execute = async () => {
+      req.stopTools?.();
+      if (server && threadId && turnId) await server.request('turn/interrupt', { threadId, turnId }, CODEX_RUN_LIMITS.stopGraceMs).catch(() => {});
+      await server?.close(); settle?.(new Error('Run interrupted'));
+    })();
+    const onAbort = () => { void abort(); };
+    req.signal.addEventListener('abort', onAbort, { once: true });
+    const startedAt = Date.now();
+    void (async () => {
+      let error: string | null = null, text = '', structured: unknown = null, completed = false;
+      let inputTokens = 0, outputTokens = 0, baseInput = 0, baseOutput = 0, metadata: ProviderSessionMetadata | undefined;
       let temporary: string | null = null;
-      let started = false;
-      let finalText = '';
-      let completed = false;
-      let error: string | null = null;
-      let sessionId: string | null = null;
-      let inputTokens = 0;
-      let outputTokens = 0;
-      let toolCount = 0;
-      const startedAt = Date.now();
-      const startedEvent = () => {
-        if (started) return;
-        started = true;
-        events.push({ type: 'started', providerSessionId: sessionId, model: chosenModel === 'default' ? null : chosenModel, providerVersion: null, tools: [], toolServers: [], authSource: 'Codex CLI login' });
-      };
+      const tools = new Set<string>();
+      const reported = new Set<string>();
+      const limits = this.limits();
+      const timeout = setTimeout(() => { errorKind = 'interrupted'; void abort(); }, req.maxDurationMs ?? limits.maxDurationMs);
       try {
-        if (req.signal.aborted) { interrupted = true; throw new Error('Run interrupted'); }
-        temporary = mkdtempSync(join(tmpdir(), 'shuriken-codex-'));
-        const args = ['exec', '--json', '--skip-git-repo-check', '--sandbox', req.providerSandbox ?? 'read-only'];
-        // Shuriken MCP is a per-run, short-lived server token. Its bearer is in
-        // the child environment, never in shell arguments, logs or persisted files.
-        const extraEnv: Record<string, string> = { ...(req.env ?? {}) };
-        for (let i = 0; i < req.toolServers.length; i++) {
-          const server = req.toolServers[i]!;
-          if (!/^[a-zA-Z][\w-]*$/.test(server.name)) throw new Error('Unsafe MCP server identifier');
-          const header = Object.entries(server.headers).find(([k]) => k.toLowerCase() === 'authorization')?.[1] ?? '';
-          const token = /^Bearer\s+(.+)$/i.exec(header)?.[1];
-          const variable = 'SHURIKEN_CODEX_MCP_TOKEN_' + i;
-          if (token) extraEnv[variable] = token;
-          args.push('-c', 'mcp_servers.' + server.name + '.url=' + JSON.stringify(server.url));
-          if (token) args.push('-c', 'mcp_servers.' + server.name + '.bearer_token_env_var=' + JSON.stringify(variable));
+        if (req.signal.aborted || interrupted) throw new Error('Run interrupted');
+        if (req.maxBudgetUsd !== undefined) { errorKind = 'budget'; throw new Error('A strict USD budget cannot be guaranteed by a ChatGPT subscription.'); }
+        const model = req.model ?? this.modelForTier(req.modelTier);
+        if (!model || model === 'default' || !isAllowedCodexModel(model)) throw new Error('An explicit non-Astra model is required');
+        const version = codexVersion(), overrides = await isolatedCodexOverrides(undefined, req.cwd);
+        const allowedServers: Array<{ name: string; url: string; bearer: string }> = [], env: Record<string, string> = {};
+        for (const [index, s] of req.toolServers.entries()) {
+          if (s.name !== 'shuriken') throw new Error('Only Shuriken MCP is allowed');
+          // Stable namespace across resumes; isolation is provided by the process and run bearer.
+          const name = index === 0 ? 'shuriken_controlled' : `shuriken_controlled_${index}`, url = new URL(s.url);
+          if (overrides.includes(`mcp_servers.${name}.enabled=false`)) throw new Error('The reserved Shuriken MCP server name is already configured in Codex');
+          if (url.hostname !== '127.0.0.1' || url.protocol !== 'http:') throw new Error('Shuriken MCP must use loopback');
+          const token = Object.entries(s.headers).find(([k]) => k.toLowerCase() === 'authorization')?.[1]?.replace(/^Bearer\s+/i, '');
+          if (!token) throw new Error('Shuriken MCP bearer missing');
+          const variable = `SHURIKEN_CODEX_TOKEN_${index}`;
+          env[variable] = token; allowedServers.push({ name, url: s.url, bearer: variable });
+          // Only this authenticated loopback server handles approvals, before any tool effect.
+          overrides.push(`mcp_servers.${name}.url=${JSON.stringify(s.url)}`, `mcp_servers.${name}.bearer_token_env_var=${JSON.stringify(variable)}`, `mcp_servers.${name}.enabled=true`, `mcp_servers.${name}.required=true`, `mcp_servers.${name}.default_tools_approval_mode="approve"`);
         }
-        // Codex itself connects to MCP. Do not open the sandbox's network access
-        // for model-generated shell commands merely to reach a local MCP server.
-        if (chosenModel !== 'default') {
-          if (!isAllowedCodexModel(chosenModel)) throw new Error('Astra and invalid Codex models are excluded.');
-          args.push('--model', chosenModel);
+        if (interrupted) throw new Error('Run interrupted');
+        server = new CodexAppServer({ env, overrides, cwd: req.cwd });
+        if (server.pid) this.observeProcess?.(server.pid);
+        await server.initialize(); await verifyCodexIsolation(server, allowedServers);
+        const { account } = await server.request('account/read', { refreshToken: false });
+        if (account?.type !== 'chatgpt') { errorKind = 'auth'; throw new Error('Only an existing ChatGPT subscription login is permitted'); }
+        const catalog: ModelListResponse = await server.request('model/list', { limit: 100, includeHidden: false });
+        if (!codexModelOptions(catalog).some((m) => m.id === model)) throw new Error('Selected Codex model is unavailable or excluded');
+        metadata = { adapter: ADAPTER, account: digest([account.email, account.planType]), policy: digest([version, req.cwd, req.role, req.builtinTools, req.providerSandbox, model, req.instructions, req.permissionFingerprint]) };
+        const compatible = !!(req.resumeSessionId && req.sessionMetadata?.adapter === metadata.adapter && req.sessionMetadata.account === metadata.account && req.sessionMetadata.policy === metadata.policy);
+        if (compatible) { baseInput = req.sessionMetadata?.inputTokens ?? 0; baseOutput = req.sessionMetadata?.outputTokens ?? 0; }
+        if (req.resumeSessionId && !compatible) events.push({ type: 'notice', level: 'info', message: 'Codex session incompatible; rebuilding context from Shuriken.' });
+        const common = { model, modelProvider: 'openai', cwd: req.cwd, approvalPolicy: 'never', sandbox: 'read-only', developerInstructions: req.instructions + '\nUse ONLY Shuriken MCP workspace_read_file, workspace_search, workspace_write_file and workspace_exec for files and commands. Native shell, apply_patch, browsers and delegation are unavailable. Never bypass these controls. Use expectedSha256 from a read, or absent for a new file.', config: { web_search: 'disabled' } };
+        const started = compatible ? await server.request('thread/resume', { ...common, threadId: req.resumeSessionId, excludeTurns: true }) : await server.request('thread/start', common);
+        threadId = started.thread.id;
+        if (!threadId) throw new Error('Codex did not return a thread ID');
+        const toolNames: string[] = [];
+        for (const { name: serverName } of allowedServers) {
+          const inventory = await server.request('mcpServerStatus/list', { threadId, serverName, detail: 'toolsAndAuthOnly' });
+          const status = inventory.data?.find((entry: { name: string }) => entry.name === serverName);
+          if (!status || status.toolsError) throw new Error('Codex could not discover the Shuriken MCP tools');
+          toolNames.push(...Object.keys(status.tools ?? {}));
         }
-        if (req.outputSchema) {
-          const schema = join(temporary, 'result-schema.json');
-          writeFileSync(schema, JSON.stringify(req.outputSchema), 'utf8');
-          args.push('--output-schema', schema);
-        }
-        for (let i = 0; i < (req.images ?? []).length; i++) {
-          const im = req.images![i]!;
-          const extension = im.mediaType.split('/')[1] === 'jpeg' ? 'jpg' : im.mediaType.split('/')[1];
-          const image = join(temporary, 'reference-' + i + '.' + extension);
-          writeFileSync(image, Buffer.from(im.data, 'base64'));
-          args.push('--image', image);
-        }
-        if (req.resumeSessionId) {
-          if (!/^[a-zA-Z0-9_-]{6,128}$/.test(req.resumeSessionId)) throw new Error('Invalid Codex session ID');
-          args.push('resume', req.resumeSessionId);
-        }
-        // The actual task lives in stdin: no prompt/shell injection.
-        args.push('-');
-        const prompt = [req.instructions, req.prompt].filter(Boolean).join('\n\n');
-        // The URL comes from Shuriken's loopback MCP server, not arbitrary external endpoints.
-        child = this.cli(args, { cwd: req.cwd, env: extraEnv });
-        let partial = '';
-        let stderr = '';
-        const record = (line: string) => {
-          let evt: CliEvent;
-          try { evt = JSON.parse(line) as CliEvent; } catch { return; }
-          if (evt.type === 'thread.started' && evt.thread_id) {
-            sessionId = evt.thread_id;
-            startedEvent();
-          } else if (evt.type === 'item.started' || evt.type === 'item.completed') {
-            const item = evt.item;
-            if (!item) return;
-            const isDone = evt.type === 'item.completed';
-            if (item.type === 'agent_message' && isDone && item.text) {
-              finalText = item.text;
-              events.push({ type: 'text', text: item.text, partial: false });
-            } else if (item.type === 'reasoning' && isDone && item.text) {
-              // Codex reports a high-level reasoning summary, never hidden reasoning.
-              events.push({ type: 'thinking', text: item.text });
-            } else if (item.type === 'command_execution' && item.id) {
-              if (!isDone) { toolCount++; events.push({ type: 'tool_call', id: item.id, tool: 'Codex command', toolClass: 'shell', input: { command: item.command ?? '' }, parentId: null }); }
-              else events.push({ type: 'tool_result', id: item.id, isError: item.status === 'failed', output: item.output ?? item, parentId: null });
-            } else if (item.type === 'mcp_tool_call' && item.id) {
-              const toolName = 'mcp__' + (item.server ?? 'unknown') + '__' + (item.tool ?? 'unknown');
-              if (!isDone) { toolCount++; events.push({ type: 'tool_call', id: item.id, tool: toolName, toolClass: 'mcp', input: item.arguments ?? {}, parentId: null }); }
-              else events.push({ type: 'tool_result', id: item.id, isError: item.status === 'failed' || !!item.error, output: item.result ?? item.error ?? null, parentId: null });
-            } else if (item.type === 'file_change' && isDone) {
-              const id = item.id ?? 'codex-file-' + toolCount++;
-              events.push({ type: 'tool_call', id, tool: 'Codex patch', toolClass: 'edit_files', input: { changes: item.changes ?? [] }, parentId: null });
-              events.push({ type: 'tool_result', id, isError: item.status === 'failed', output: item.changes ?? [], parentId: null });
+        if (allowedServers.length && !toolNames.length) throw new Error('Codex discovered no authorized Shuriken MCP tools');
+        events.push({ type: 'started', providerSessionId: threadId, model, providerVersion: version, tools: toolNames, toolServers: allowedServers.map(({ name }) => ({ name, status: 'connected' })), authSource: 'ChatGPT', sessionMetadata: metadata });
+        let resolveTurn!: () => void, rejectTurn!: (e: Error) => void;
+        const finished = new Promise<void>((resolve, reject) => { resolveTurn = resolve; rejectTurn = reject; });
+        void finished.catch(() => {});
+        settle = (e) => e ? rejectTurn(e) : resolveTurn(); server.onFailure = rejectTurn;
+        server.onNotification = (method, p) => {
+          if (p?.threadId && p.threadId !== threadId) return;
+          if (method === 'turn/started') turnId = p.turn.id;
+          if (method === 'item/started' && p.item?.type === 'mcpToolCall' && !tools.has(p.item.id)) {
+            tools.add(p.item.id); events.push({ type: 'tool_call', id: p.item.id, tool: 'mcp__shuriken__' + p.item.tool, toolClass: 'mcp', input: p.item.arguments ?? {}, parentId: null });
+          }
+          if (method === 'item/completed') {
+            const item = p.item;
+            if (item?.type === 'agentMessage') { text = item.text ?? ''; events.push({ type: 'text', text, partial: false }); }
+            if (item?.type === 'mcpToolCall' && !reported.has(item.id)) {
+              reported.add(item.id);
+              events.push({ type: 'tool_result', id: item.id, isError: item.status !== 'completed' || !!item.error || !!item.result?.isError, output: item.result ?? item.error, parentId: null });
             }
-          } else if (evt.type === 'turn.completed') {
-            completed = true;
-            inputTokens = evt.usage?.input_tokens ?? 0;
-            outputTokens = evt.usage?.output_tokens ?? 0;
-          } else if (evt.type === 'turn.failed' || evt.type === 'error') {
-            error = evt.error?.message ?? evt.message ?? 'Codex failed';
+            if (item?.type === 'fileChange' || item?.type === 'commandExecution') { errorKind = 'execution'; void abort(); }
           }
+          if (method === 'item/agentMessage/delta') events.push({ type: 'text', text: p.delta ?? '', partial: true });
+          if (method === 'account/rateLimits/updated') {
+            const primary = p.rateLimits?.primary;
+            if (primary) events.push({ type: 'rate_limit', status: primary.usedPercent >= 100 ? 'rejected' : 'allowed', window: 'primary', utilization: primary.usedPercent / 100, resetsAt: primary.resetsAt ?? null, raw: {} });
+          }
+          if (method === 'thread/tokenUsage/updated') {
+            const u = p.tokenUsage?.total;
+            inputTokens = Math.max(0, (u?.inputTokens ?? 0) - baseInput);
+            outputTokens = Math.max(0, (u?.outputTokens ?? 0) - baseOutput);
+            if (inputTokens + outputTokens >= (req.maxTokens ?? limits.maxTokens)) { errorKind = 'budget'; void abort(); }
+          }
+          if (method === 'turn/completed') { completed = p.turn?.status === 'completed'; if (completed) resolveTurn(); else rejectTurn(new Error(p.turn?.error?.message ?? `Codex turn ${p.turn?.status}`)); }
         };
-        child.stdout.on('data', (buf: Buffer) => {
-          partial += buf.toString('utf8');
-          let end: number;
-          while ((end = partial.indexOf('\n')) !== -1) {
-            const line = partial.slice(0, end).trim();
-            partial = partial.slice(end + 1);
-            if (line) record(line);
+        const input: unknown[] = [{ type: 'text', text: toolNames.length ? `Shuriken MCP tools available for this run: ${toolNames.join(', ')}. Discover them under the Shuriken MCP namespace before concluding a tool is missing.\n\n${req.prompt}` : req.prompt }];
+        if (req.images?.length) {
+          temporary = mkdtempSync(join(tmpdir(), 'shuriken-codex-'));
+          for (const [i, image] of req.images.entries()) {
+            const path = join(temporary, `reference-${i}.${image.mediaType.split('/')[1]}`); writeFileSync(path, Buffer.from(image.data, 'base64'));
+            if (image.caption) input.push({ type: 'text', text: image.caption }); input.push({ type: 'localImage', path });
           }
-        });
-        child.stderr.on('data', (buf: Buffer) => { stderr = (stderr + buf.toString('utf8')).slice(-10000); });
-        child.stdin.on('error', () => undefined);
-        child.stdin.end(prompt);
-        const code = await new Promise<number>((resolve) => {
-          child!.on('close', (c) => resolve(c ?? 1));
-          child!.on('error', (e) => { error = e.message; resolve(1); });
-        });
-        if (partial.trim()) record(partial.trim());
-        startedEvent();
-        if (code !== 0 || !completed) error ??= stderr.trim() || 'Codex CLI did not complete the turn';
-      } catch (e) {
-        error = e instanceof Error ? e.message : String(e);
-        startedEvent();
-      } finally {
-        if (temporary) rmSync(temporary, { recursive: true, force: true });
-        req.signal.removeEventListener('abort', abort);
-        const errorKind: CompletionErrorKind | null = !error ? null : interrupted ? 'interrupted' : RATE_LIMIT.test(error) ? 'rate_limit' : AUTH_ERROR.test(error) ? 'auth' : SHELL_ERROR.test(error) ? 'environment' : 'execution';
-        if (error && errorKind === 'rate_limit') events.push({ type: 'rate_limit', status: 'rejected', window: null, utilization: null, resetsAt: null, raw: { message: error } });
-        let structured: unknown = null;
-        if (req.outputSchema && finalText) {
-          try { structured = JSON.parse(finalText); } catch { /* The orchestrator reports invalid structured output. */ }
         }
-        events.push({
-          type: 'completed', ok: !error && completed && !interrupted, resultText: finalText || null,
-          structured, costUsd: 0, inputTokens, outputTokens,
-          numTurns: toolCount + (completed ? 1 : 0), durationMs: Date.now() - startedAt,
-          stopReason: completed ? 'turn_completed' : null,
-          error: interrupted ? 'Run interrupted' : error,
-          errorKind,
-        });
+        const effort = effectiveCodexEffort(catalog.data?.find((entry) => (entry.model || entry.id) === model), req.effort);
+        if (req.effort && effort !== req.effort) events.push({ type: 'notice', level: 'info', message: `Codex reasoning effort: ${effort} (${req.effort} is unavailable for ${model})` });
+        const response = await server.request('turn/start', { threadId, input, model, ...(effort ? { effort } : {}), ...(req.outputSchema ? { outputSchema: strictCodexSchema(req.outputSchema) } : {}) });
+        turnId = response.turn.id; if (interrupted) await abort(); await finished;
+        if (req.outputSchema) {
+          try { structured = restoreOptionalFields(JSON.parse(text), req.outputSchema); if (!z.fromJSONSchema(req.outputSchema).safeParse(structured).success) throw new Error('Schema mismatch'); }
+          catch { errorKind = 'output_schema'; throw new Error('Codex returned invalid structured output'); }
+        }
+      } catch (e) {
+        error = (e as Error).message;
+        errorKind ??= interrupted ? 'interrupted' : /quota|rate.?limit|usage limit|429/i.test(error) ? 'rate_limit' : /\b401\b|unauthori[sz]ed|login required|token.*expired/i.test(error) ? 'auth' : 'execution';
+      } finally {
+        clearTimeout(timeout); await stopping; await server?.close();
+        if (temporary) { try { rmSync(temporary, { recursive: true, force: true }); } catch {} } req.signal.removeEventListener('abort', onAbort);
+        if (metadata) metadata = { ...metadata, inputTokens: baseInput + inputTokens, outputTokens: baseOutput + outputTokens };
+        events.push({ type: 'completed', ok: completed && !error && !interrupted, resultText: text || null, structured, costUsd: 0, costKnown: false, inputTokens, outputTokens, numTurns: turnId ? tools.size + 1 : 0, durationMs: Date.now() - startedAt, stopReason: completed ? 'turn_completed' : null, error, errorKind, sessionMetadata: metadata });
         events.close();
       }
-    };
-    void execute();
-    return { events, interrupt: async () => abort() };
+    })();
+    return { events, interrupt: abort };
   }
 }

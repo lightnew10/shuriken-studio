@@ -91,21 +91,8 @@ echo.
 echo [5/6] Checking Codex CLI...
 where codex >nul 2>&1
 if errorlevel 1 (
-    echo Installing the official Codex CLI...
-    call npm install -g @openai/codex
-    if errorlevel 1 echo [WARNING] Codex CLI installation failed. Claude can still be used.
-)
-
-where codex >nul 2>&1
-if not errorlevel 1 (
-    call codex login status >nul 2>&1
-    if errorlevel 1 (
-        echo Log in with your ChatGPT account when prompted...
-        call codex login
-        if errorlevel 1 echo [WARNING] Codex is not signed in. You can log in later in Settings.
-    )
-) else (
-    echo [WARNING] Codex CLI not found. You can configure it later.
+    echo Codex may already be provided by the desktop app. Check Settings - AI accounts.
+    echo If needed, install npm install -g @openai/codex@0.166.0 and sign in manually.
 )
 
 echo.

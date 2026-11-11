@@ -1,3 +1,4 @@
+import { trustedMainFrame, trustedRendererUrl } from './trusted-url';
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, powerSaveBlocker, safeStorage, screen, shell, utilityProcess, WebContentsView, type UtilityProcess, type WebContents } from 'electron';
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, normalize } from 'node:path';
@@ -663,7 +664,10 @@ function guard(wc: WebContents): void {
     return { action: 'deny' };
   });
   wc.on('will-navigate', (e, url) => {
-    if (!url.startsWith('http://localhost') && !url.startsWith('file://')) e.preventDefault();
+    if (!trustedRendererUrl(url, join(import.meta.dirname, '..', 'renderer', 'index.html'), process.env.ELECTRON_RENDERER_URL)) e.preventDefault();
+  });
+  wc.on('will-redirect', (e, url) => {
+    if (!trustedRendererUrl(url, join(import.meta.dirname, '..', 'renderer', 'index.html'), process.env.ELECTRON_RENDERER_URL)) e.preventDefault();
   });
   wc.on('before-input-event', (e, input) => tabShortcut(e, input, wc));
 }
@@ -1071,9 +1075,9 @@ function openTab(projectId: string | null, frame?: Frame | null): { focused: boo
 const updater = new Updater(userData, app.isPackaged, (s) => {
   for (const w of workspaces.values()) send(w, 'core:event', 'app.update', s);
 }, mainLog);
-ipcMain.handle('updates:status', () => updater.status);
-ipcMain.handle('updates:check', () => updater.check());
-ipcMain.handle('updates:install', () => updater.installNow());
+handleTrusted('updates:status', () => updater.status);
+handleTrusted('updates:check', () => updater.check());
+handleTrusted('updates:install', () => updater.installNow());
 
 /** Native Windows notifications for things that need the user or finished while they looked away. */
 function notifyUser(ws: Workspace, channel: string, payload: unknown): void {
@@ -1209,7 +1213,17 @@ function notePerf(method: string, ms: number, result: unknown): void {
   if (ms >= SLOW_RPC_MS) mainLog('warn', 'slow rpc', { method, ms: Math.round(ms) });
 }
 
-ipcMain.handle('rpc', async (e, method: string, params: unknown) => {
+function isTrustedRenderer(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
+  return trustedMainFrame(event.senderFrame, event.sender.mainFrame, join(import.meta.dirname, '..', 'renderer', 'index.html'), process.env.ELECTRON_RENDERER_URL);
+}
+function handleTrusted(channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any): void {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!isTrustedRenderer(event)) throw new Error('Untrusted IPC sender');
+    return listener(event, ...args);
+  });
+}
+
+handleTrusted('rpc', async (e, method: string, params: unknown) => {
   const ws = workspaceOf(e.sender);
   if (!ws) throw new Error('No engine for this window');
   // A project lives in one project window: opening one that another window has brings that one forward.
@@ -1226,10 +1240,10 @@ ipcMain.handle('rpc', async (e, method: string, params: unknown) => {
   notePerf(method, performance.now() - t0, result);
   return result;
 });
-ipcMain.handle('windows:open', (e, projectId: string | null) => openTab(projectId, frameOfContents(e.sender)));
+handleTrusted('windows:open', (e, projectId: string | null) => openTab(projectId, frameOfContents(e.sender)));
 // "Open blank": a new project straight into its workspace, nothing started. In this project window
 // when it's on the start page, otherwise in a new one next to it.
-ipcMain.handle('windows:blank', async (e) => {
+handleTrusted('windows:blank', async (e) => {
   const me = workspaceOf(e.sender);
   if (me && !me.projectId) {
     const created = (await me.core.call('projects.createBlank', {}, 60_000)) as { name?: string };
@@ -1246,7 +1260,7 @@ ipcMain.handle('windows:blank', async (e) => {
 // "Open a game…": plug in a game Shuriken didn't build. In this project window when it's on the start
 // page, otherwise in a new one whose core plugs it in once it's up (its page opens on the project).
 // roblox: the game's community or account, chosen in the dialog (the renderer saves its own key once the project exists).
-ipcMain.handle('windows:adopt', async (e, game: { studio?: string; file?: string; roblox?: { groupId?: string | null; userId?: string | null } }) => {
+handleTrusted('windows:adopt', async (e, game: { studio?: string; file?: string; roblox?: { groupId?: string | null; userId?: string | null } }) => {
   const id = (v: unknown) => (typeof v === 'string' && /^\d{1,20}$/.test(v) ? v : null);
   const roblox = game?.roblox ? { groupId: id(game.roblox.groupId), userId: id(game.roblox.userId) } : undefined;
   const params = { studio: typeof game?.studio === 'string' ? game.studio : undefined, file: typeof game?.file === 'string' ? game.file : undefined, roblox };
@@ -1270,26 +1284,26 @@ ipcMain.handle('windows:adopt', async (e, game: { studio?: string; file?: string
   return { ...r, here: false };
 });
 // The bar along the top of an app window (the app window's own page).
-ipcMain.handle('tabs:list', (e) => {
+handleTrusted('tabs:list', (e) => {
   const f = frameOfContents(e.sender);
   return f ? stripState(f) : { tabs: [], main: true, others: 0 };
 });
-ipcMain.handle('tabs:select', (_e, id: number) => {
+handleTrusted('tabs:select', (_e, id: number) => {
   const w = workspaces.get(id);
   if (w) focus(w);
 });
-ipcMain.handle('tabs:close', (_e, id: number) => {
+handleTrusted('tabs:close', (_e, id: number) => {
   const w = workspaces.get(id);
   if (w) closeTab(w);
 });
-ipcMain.handle('tabs:new', (e) => openTab(null, frameOfContents(e.sender)));
-ipcMain.handle('tabs:move', (_e, id: number, index: number) => {
+handleTrusted('tabs:new', (e) => openTab(null, frameOfContents(e.sender)));
+handleTrusted('tabs:move', (_e, id: number, index: number) => {
   const w = workspaces.get(id);
   if (w && live(w.frame)) moveTab(w, w.frame, Number(index) || 0);
 });
 // Let go at a point on the sender bar's page (it may be far outside it): the screen point is that page's
 // origin plus the point, exact for any display scale or maximized window.
-ipcMain.handle('tabs:drop', (e, id: number, px: number, py: number) => {
+handleTrusted('tabs:drop', (e, id: number, px: number, py: number) => {
   const w = workspaces.get(id);
   const f = frameOfContents(e.sender);
   if (!w || !f || !Number.isFinite(px) || !Number.isFinite(py)) return;
@@ -1299,11 +1313,11 @@ ipcMain.handle('tabs:drop', (e, id: number, px: number, py: number) => {
   mainLog('info', 'window dropped', { project: w.projectName, x, y });
   return dropTab(w, x, y);
 });
-ipcMain.handle('tabs:detach', (_e, id: number) => {
+handleTrusted('tabs:detach', (_e, id: number) => {
   const w = workspaces.get(id);
   if (w) detachTab(w);
 });
-ipcMain.handle('tabs:dock', (_e, id: number) => {
+handleTrusted('tabs:dock', (_e, id: number) => {
   const w = workspaces.get(id);
   // Back into the main app window (from the main one: into the app window used last).
   const to = w ? (mainFrame() !== w.frame ? mainFrame() : (frames.filter((f) => f !== w.frame && !f.win.isDestroyed()).at(-1) ?? null)) : null;
@@ -1312,6 +1326,7 @@ ipcMain.handle('tabs:dock', (_e, id: number) => {
 // The bar's menus open in the page below it (the bar is only as tall as the bar): the Projects menu,
 // and the options of the project window in front. 'none' closes them.
 ipcMain.on('strip:menu', (e, menu: { kind?: string; x?: number }) => {
+  if (!isTrustedRenderer(e)) return;
   const f = frameOfContents(e.sender);
   if (!f?.active) return;
   const kind = menu?.kind === 'projects' || menu?.kind === 'window' ? menu.kind : 'none';
@@ -1320,12 +1335,13 @@ ipcMain.on('strip:menu', (e, menu: { kind?: string; x?: number }) => {
   // Keys (Escape) go to the menu.
   if (kind !== 'none') pageOf(f.active)?.focus();
 });
-ipcMain.handle('windows:projects', (e) => {
+handleTrusted('windows:projects', (e) => {
   const me = workspaceOf(e.sender);
   return [...workspaces.values()].filter((w) => w.projectId).map((w) => ({ projectId: w.projectId!, mine: w === me }));
 });
 let firstDashboardShot = false;
 ipcMain.on('journal', (e, kind: string, data: unknown) => {
+  if (!isTrustedRenderer(e)) return;
   if (!journal) return;
   if (kind === 'error') {
     const d = (data ?? {}) as { message?: string; stack?: string };
@@ -1339,24 +1355,24 @@ ipcMain.on('journal', (e, kind: string, data: unknown) => {
     setTimeout(() => void captureScreen(ws, 'dashboard'), 4000);
   }
 });
-ipcMain.handle('journal:dir', () => journal?.dir ?? null);
-ipcMain.handle('core:status', (e) => workspaceOf(e.sender)?.core.status ?? { state: 'starting' });
-ipcMain.handle('dialog:openDirectory', async (e, title?: string) => {
+handleTrusted('journal:dir', () => journal?.dir ?? null);
+handleTrusted('core:status', (e) => workspaceOf(e.sender)?.core.status ?? { state: 'starting' });
+handleTrusted('dialog:openDirectory', async (e, title?: string) => {
   const parent = frameOfContents(e.sender)?.win ?? null;
   const opts = { title: title ?? 'Select folder', properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> };
   const r = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
   return r.canceled ? null : r.filePaths[0];
 });
-ipcMain.handle('dialog:openPlaceFile', async (e) => {
+handleTrusted('dialog:openPlaceFile', async (e) => {
   const parent = frameOfContents(e.sender)?.win ?? null;
   const opts = { title: 'Open a Roblox place', filters: [{ name: 'Roblox places', extensions: ['rbxl', 'rbxlx'] }], properties: ['openFile'] as Array<'openFile'> };
   const r = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
   return r.canceled ? null : (r.filePaths[0] ?? null);
 });
-ipcMain.handle('shell:openPath', (_e, p: string) => shell.openPath(normalize(p)));
+handleTrusted('shell:openPath', (_e, p: string) => shell.openPath(normalize(p)));
 // The Storefront's pictures (a thumbnail, the icon) saved where the user picks, to upload to Roblox by hand. Only a PNG
 // inside a project's .shuriken/storefront folder can be the source.
-ipcMain.handle('file:saveAs', async (e, source: string, suggestedName: string) => {
+handleTrusted('file:saveAs', async (e, source: string, suggestedName: string) => {
   const from = normalize(String(source));
   if (!/[\\/]\.shuriken[\\/]storefront[\\/]art[\\/].+\.png$/i.test(from) || !existsSync(from)) return null;
   const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
@@ -1368,7 +1384,7 @@ ipcMain.handle('file:saveAs', async (e, source: string, suggestedName: string) =
 });
 // Deleting a project moves its folder to the Recycle Bin (recoverable), and only a folder that is a
 // Shuriken project (it has .shuriken/project.json) and not a drive, home, Documents or Desktop.
-ipcMain.handle('projects:trash', async (_e, p: string) => {
+handleTrusted('projects:trash', async (_e, p: string) => {
   const dir = normalize(String(p ?? ''));
   const protectedDirs = ['home', 'documents', 'desktop', 'userData'].map((k) => normalize(app.getPath(k as 'home')).toLowerCase());
   if (!dir || dir === dirname(dir) || protectedDirs.includes(dir.toLowerCase()) || !existsSync(join(dir, '.shuriken', 'project.json'))) {
@@ -1382,9 +1398,9 @@ ipcMain.handle('projects:trash', async (_e, p: string) => {
     return { ok: false, error: `Windows could not move it to the Recycle Bin (${(e as Error).message}). If its place is open in Studio, close it and try again.` };
   }
 });
-ipcMain.handle('shell:showItem', (_e, p: string) => shell.showItemInFolder(normalize(p)));
-ipcMain.handle('shell:openExternal', (_e, url: string) => (/^https?:\/\//.test(url) ? shell.openExternal(url) : undefined));
-ipcMain.handle('file:readImage', (_e, p: string) => {
+handleTrusted('shell:showItem', (_e, p: string) => shell.showItemInFolder(normalize(p)));
+handleTrusted('shell:openExternal', (_e, url: string) => (/^https?:\/\//.test(url) ? shell.openExternal(url) : undefined));
+handleTrusted('file:readImage', (_e, p: string) => {
   // Only images inside a project's .shuriken folder may be read by the renderer.
   const n = normalize(p);
   const m = /[\\/]\.shuriken[\\/](evidence|snapshots)[\\/][^\\/]+\.(png|jpe?g|webp)$/i.exec(n);
@@ -1402,23 +1418,23 @@ function readSecrets(): Record<string, string> {
     return {};
   }
 }
-ipcMain.handle('secrets:set', (_e, key: string, value: string) => {
+handleTrusted('secrets:set', (_e, key: string, value: string) => {
   if (!safeStorage.isEncryptionAvailable()) throw new Error('OS encryption unavailable');
   const all = readSecrets();
   all[key] = safeStorage.encryptString(value).toString('base64');
   writeFileSync(secretsFile, JSON.stringify(all));
   return true;
 });
-ipcMain.handle('secrets:has', (_e, key: string) => key in readSecrets());
+handleTrusted('secrets:has', (_e, key: string) => key in readSecrets());
 // Settings → This project: "keep the current default key for this project" copies it encrypted, without reading it.
-ipcMain.handle('secrets:copy', (_e, from: string, to: string) => {
+handleTrusted('secrets:copy', (_e, from: string, to: string) => {
   const all = readSecrets();
   if (!(from in all) || typeof to !== 'string' || !to) return false;
   all[to] = all[from]!;
   writeFileSync(secretsFile, JSON.stringify(all));
   return true;
 });
-ipcMain.handle('secrets:delete', (_e, key: string) => {
+handleTrusted('secrets:delete', (_e, key: string) => {
   const all = readSecrets();
   delete all[key];
   writeFileSync(secretsFile, JSON.stringify(all));
@@ -1919,6 +1935,7 @@ function createKilnDocks(): KilnDocks {
     },
     pageOf: (tabId) => pageOf(workspaces.get(tabId)),
     tabOf: (wc) => (workspaces.has(wc.id) ? wc.id : null),
+    trustedRenderer: isTrustedRenderer,
     projectName: (tabId) => workspaces.get(tabId)?.projectName ?? null,
     callCore: (tabId, method, params, timeoutMs) => {
       const ws = workspaces.get(tabId);
@@ -1947,7 +1964,7 @@ function createKilnDocks(): KilnDocks {
 }
 
 /** Where Kiln is, for Settings: the exe Shuriken would start, and whether (which version) runs now. */
-ipcMain.handle('kiln:locate', async (_e, configured: unknown) => {
+handleTrusted('kiln:locate', async (_e, configured: unknown) => {
   const rt = readKilnRuntime();
   let running = false;
   if (rt) {

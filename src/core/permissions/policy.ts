@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import type { EscalationMode, EscalationRules, PermissionMode } from '@shared/domain';
 import { needsOwner, type OwnerNeed } from './owner-gate';
@@ -113,7 +114,7 @@ export function decideFileWrite(path: string, roots: string[]): PolicyDecision {
     return { outcome: 'deny', notify: true, reason: `Write outside the project workspace is not permitted: ${abs}. Scratch files (throwaway scripts, intermediate files) go in ${SCRATCH_REL}/ inside the project: write and delete there freely`, rule: null };
   }
   const withSep = abs + sep;
-  if (PROTECTED_SEGMENTS.some((seg) => withSep.includes(seg))) {
+  if (PROTECTED_SEGMENTS.some((seg) => withSep.toLowerCase().includes(seg.toLowerCase()))) {
     return { outcome: 'deny', notify: true, reason: `Protected path (git internals, app database, dependencies): ${abs}`, rule: null };
   }
   return { outcome: 'allow', notify: false, reason: 'Write inside project workspace', rule: null };
@@ -240,4 +241,8 @@ export function decideShell(command: string, rules: EscalationRules, ctx: ShellC
   }
   if (granted.length) return { outcome: 'allow', notify: true, autoApproved: true, reason: `Auto-approved (autonomous mode): ${granted.map((p) => p.what).join(', ')}`, rule: granted[0]!.rule };
   return rest ?? { outcome: 'allow', notify: false, reason: 'Shell command within normal development scope', rule: null };
+}
+/** Approval binds every argument; a long prefix shared by two commands never grants the second one. */
+export function approvalSignature(scope: string | null, tool: string, args: unknown): string {
+  return `${scope ?? 'external'}|${tool}|${createHash('sha256').update(JSON.stringify(args) ?? 'null').digest('hex')}`;
 }

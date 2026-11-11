@@ -64,6 +64,7 @@ const cents4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
 /** The build's cost from its database (the open project's Store, or a read-only connection: see buildCost). */
 export function costOf(db: CostRows): BuildCost {
+  const unknownRuns = rows<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM runs WHERE cost_known = 0')[0]?.n ?? 0;
   // One row per run; the booked calls the same shape (a call with a task counts toward that task's goal).
   const runs = rows<RunRow>(db, 'SELECT role, task_id, COALESCE(cost_usd, 0) AS cost, started_at AS first, COALESCE(ended_at, started_at) AS last FROM runs');
   const booked = rows<RunRow>(db, 'SELECT source AS role, task_id, COALESCE(cost_usd, 0) AS cost, at AS first, at AS last FROM cost_entries');
@@ -91,7 +92,7 @@ export function costOf(db: CostRows): BuildCost {
   const categories = COST_CATEGORIES.filter((c) => byCat.has(c.id))
     .map((c) => ({ id: c.id, label: c.label, usd: cents4(byCat.get(c.id)!.usd), runs: byCat.get(c.id)!.runs }))
     .sort((a, b) => b.usd - a.usd || order.get(a.id)! - order.get(b.id)!);
-  return { totalUsd: cents4(total), categories, goals: goalsOf(db, byTask), kilnUsd: cents4(byCat.get('kiln')?.usd ?? 0), since, until };
+  return { totalUsd: cents4(total), categories, goals: goalsOf(db, byTask), kilnUsd: cents4(byCat.get('kiln')?.usd ?? 0), since, until, ...(unknownRuns ? { unknownRuns } : {}) };
 }
 
 /** Each objective with what the runs of its tasks cost: a run's task is followed up its parents to the objective. */

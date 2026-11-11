@@ -53,11 +53,12 @@ import { PLAYTEST_LIMITS, PlaytestLease, ownerLabel, playCapped, type LeaseMarke
 import { IdleTracker } from './roblox/studio-window';
 import { imageStates } from './roblox/image-status';
 import { OpenCloudLuau, type SecretProvider } from './roblox/open-cloud-luau';
-import { DEFAULT_ESCALATION } from './permissions/policy';
+import { approvalSignature, DEFAULT_ESCALATION } from './permissions/policy';
 import { seedKnowledge } from './knowledge/seed';
 import { PluginService } from './plugins/plugin-service';
 import { LuauIndexer } from './code/luau-index';
 import { registerCodeTools } from './code/code-tools';
+import { registerWorkspaceTools } from './capabilities/workspace-tools';
 import { registerGeometryTools } from './capabilities/geometry-tools';
 import { registerAnimationTools } from './capabilities/animation-tools';
 import { registerEffectTools } from './capabilities/effects-tools';
@@ -321,7 +322,7 @@ export class Core {
     });
     const providers = opts.providers ?? [
       new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
-      new CodexProvider((tier) => this.providers.codexModels()[tier]),
+      new CodexProvider((tier) => this.providers.codexModels()[tier], () => this.settingJson('provider.codex.limits', { maxDurationMs: 20 * 60_000, maxTokens: 200_000 })),
     ];
     for (const p of providers) this.providers.register(p);
     this.usage = new UsageTracker(this.global, this.bus);
@@ -332,6 +333,7 @@ export class Core {
     this.providers.setCodexFallbackAvailability(() =>
       !this.accounts.anyCanStart('claude', this.usage) &&
       this.usage.canStartRun('codex').ok &&
+      Object.values(this.providers.codexModels()).every(Boolean) &&
       this.health.get('provider:codex')?.status === 'healthy',
     );
     // This window's own account (the top bar's menu): kept with its open project, in memory when none is open.
@@ -358,7 +360,7 @@ export class Core {
         mode: () => this.permissionMode(),
         waiting: (caller, on) => this.orchestrator.park(caller.taskId, on),
         requestApproval: async (caller, tool, reason, args) => {
-          const sig = `${caller.taskId ?? caller.runId}|${tool}|${JSON.stringify(args).slice(0, 500)}`;
+          const sig = approvalSignature(caller.taskId ?? caller.runId, tool, args);
           if (this.approvals.has(sig)) return true;
           this.project?.governance.escalate({
             kind: 'approval',
@@ -493,6 +495,7 @@ export class Core {
       },
     });
     registerCodeTools(this.tools, { project: () => this.project, indexer: this.indexer });
+    registerWorkspaceTools(this.tools, () => this.requireProject());
     registerGeometryTools(this.tools, { project: () => this.project, studio: this.studio, lease: this.lease, bus: this.bus, otherAgents: (runId) => this.runner.activeRuns().filter((r) => r !== runId).length });
     registerAnimationTools(this.tools, {
       render: opts.render,

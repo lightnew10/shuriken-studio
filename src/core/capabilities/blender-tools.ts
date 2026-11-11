@@ -45,7 +45,9 @@ function totals(s: SceneSummary | null): string {
 }
 
 function formatExec(name: string, r: ExecResult): string {
-  const lines = [r.ok ? `Ran in ${r.ms} ms.` : 'Failed.', r.changed ? `${name} changed: version ${r.version}, saved, and shown on the Models page.` : 'No change to the model.'];
+  const lines = [r.pythonOk ?? r.ok ? `Python ran in ${r.ms} ms.` : 'Python failed.', r.changed ? `${name} changed: version ${r.version}.` : 'No change to the model.'];
+  if (r.changed) lines.push(r.saved === false ? 'Local .blend save not confirmed.' : 'Local .blend saved.');
+  if (r.exportStatus === 'failed') lines.push('Roblox export failed. Previous parts are stale.');
   if (r.output.trim()) lines.push(`Output:\n${r.output.trimEnd()}`);
   if (r.error) lines.push(`Error:\n${r.error}`);
   if (r.added.length) lines.push(`Added: ${r.added.slice(0, 25).join(', ')}${r.added.length > 25 ? ` (+${r.added.length - 25} more)` : ''}`);
@@ -104,6 +106,7 @@ export function registerBlenderTools(reg: ToolRegistry, d: BlenderToolDeps): voi
 
   reg.register({
     name: 'blender_python',
+    providerScope: 'exclude-codex',
     title: 'Model in Blender',
     description:
       "Run Python in the model's own headless Blender scene (bpy, bmesh, mathutils, math, np and the kiln helpers are preloaded; variables persist between calls). The first call creates the model. Units are STUDS, Z is up, the floor is z = 0, and the model's front faces -Y (Blender's Front view). Returns printed output, errors with the failing line, objects added/removed, scene totals, the Roblox MeshParts it exports to (one per material: colour, Roblox material, triangles), its size against a Roblox character, and an automatic check for flickering coincident surfaces and floating parts. Collision: an object's custom property kiln_role (drivable | ground | barrier | decor | collider; a collider also kiln_collides_for = the object it stands in for) sets how its part collides in Roblox: road and floor surfaces are precise, leaves and tufts collide with nothing; without it the role is guessed from names (road, asphalt, rail, wall, leaves, tuft…). Every change is saved as an undoable version and appears on the Models page.",
@@ -127,8 +130,34 @@ export function registerBlenderTools(reg: ToolRegistry, d: BlenderToolDeps): voi
         d.bus.emit('models.building', { name: args.model, state: 'building', by: ws.by ?? undefined });
         const r = await ws.exec(args.code, (args.timeout_s ?? 120) * 1000, args.step);
         d.bus.emit('models.building', { name: args.model, state: r.ok ? 'done' : 'failed', by: ws.by ?? undefined });
-        return { ...textOutput(formatExec(args.model, r)), isError: !r.ok };
+        return { ...textOutput(formatExec(args.model, r), { ok: r.ok, pythonOk: r.pythonOk ?? r.ok, saved: r.saved ?? r.changed, exportStatus: r.exportStatus }), isError: !r.ok };
       }),
+  });
+
+  reg.register({
+    name: 'blender_create_box',
+    providerScope: 'codex-only',
+    title: 'Create and export a Blender box',
+    description: 'Create a new Blender box with specified dimensions in studs, resting on the floor. Saves the scene and exports a GLB for Roblox. An existing scene is not overwritten.',
+    capability: 'app.modeling',
+    permission: 'write_project',
+    available: avail,
+    strict: true,
+    input: { model: z.string().regex(NAME), width: z.number().min(0.01).max(100), depth: z.number().min(0.01).max(100), height: z.number().min(0.01).max(100) },
+    handler: ({ args, caller, signal }) => guard(async () => {
+      const p = proj();
+      if (caller.projectRoot && caller.projectRoot !== p.root) return errorOutput('Project is no longer active');
+      if (d.ownedByKiln?.(p.root, args.model)) return errorOutput('This model belongs to Kiln');
+      const kiln = d.kilnFirst?.(p.root, args.model);
+      if (kiln) return errorOutput(kiln);
+      const ws = workspace(args.model, caller);
+      if (signal.aborted) return errorOutput('Run stopped');
+      // Only bounded numbers are interpolated. No part of the prompt is executed as Python.
+      const { width: x, depth: y, height: z } = args;
+      const code = `import bmesh\nif bpy.context.scene.objects:\n    raise ValueError("This model is not empty")\nbm=bmesh.new()\nbmesh.ops.create_cube(bm,size=1)\nfor v in bm.verts:\n    v.co.x *= ${x}\n    v.co.y *= ${y}\n    v.co.z = (v.co.z + 0.5) * ${z}\nkiln.mesh_object("Body",bm)`;
+      const r = await ws.exec(code, 30_000, 'Create box');
+      return { ...textOutput(formatExec(args.model, r)), isError: !r.ok };
+    }),
   });
 
   reg.register({

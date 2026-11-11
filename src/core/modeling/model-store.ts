@@ -40,6 +40,8 @@ export interface ModelMeta {
   faces: number;
   solids: number;
   valid: boolean | null;
+  /** Last export no longer matches the edited scene; the old files and placements are kept for recovery. */
+  exportError?: string;
   tolerance: number | null;
   /**
    * Roblox asset (a Model holding the MeshPart) once uploaded, for the current hash. `operation`: Roblox

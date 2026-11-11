@@ -28,6 +28,7 @@ export interface KilnDockHost {
   placeOf(tabId: number): { win: BrowserWindow; top: number; front: boolean } | null;
   pageOf(tabId: number): WebContents | null;
   tabOf(page: WebContents): number | null;
+  trustedRenderer(event: Electron.IpcMainEvent): boolean;
   projectName(tabId: number): string | null;
   callCore(tabId: number, method: string, params: unknown, timeoutMs?: number): Promise<unknown>;
   /** Where Kiln.exe is, whether Shuriken may start it, and whether it may use Kiln at all (off in test runs). */
@@ -66,11 +67,13 @@ export class KilnDocks {
   constructor(private readonly host: KilnDockHost) {
     // From a project window's Kiln page.
     ipcMain.on('kiln:page', (e, state: KilnPageState) => {
+      if (!this.host.trustedRenderer(e)) return;
       const tab = this.host.tabOf(e.sender);
       if (tab !== null) this.pageChanged(tab, state);
     });
     // From the Kiln page's Undock button, an undocked window's Dock back button, or Kiln itself (kilnHost.toggleDock).
     ipcMain.on('kiln:toggle-dock', (e) => {
+      if (!this.host.trustedRenderer(e) && !this.fromKiln(e)) return;
       const d = this.dockOfSender(e.sender);
       if (d) this.toggle(d);
     });
@@ -89,8 +92,8 @@ export class KilnDocks {
       }
     });
     ipcMain.handle('kiln:use-model', async (e, args: { kilnProjectId?: unknown; name?: unknown }) => {
-      const d = this.dockOfSender(e.sender);
-      if (!d || !d.view || e.sender !== d.view.webContents || !isKilnOrigin(e.senderFrame?.url ?? '', d.runtime)) return { ok: false, error: 'Not from Kiln' };
+      const d = this.fromKiln(e);
+      if (!d) return { ok: false, error: 'Not from Kiln' };
       const kilnProjectId = String(args?.kilnProjectId ?? '');
       const name = String(args?.name ?? '');
       if (!kilnProjectId || !name) return { ok: false, error: 'A Kiln project and a model name are needed' };
@@ -103,9 +106,10 @@ export class KilnDocks {
   }
 
   /** A request from the Kiln view itself (its origin checked), for the project window it's docked in. */
-  private fromKiln(e: Electron.IpcMainInvokeEvent): Dock | null {
+  private fromKiln(e: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): Dock | null {
     const d = this.dockOfSender(e.sender);
-    return d && d.view && e.sender === d.view.webContents && isKilnOrigin(e.senderFrame?.url ?? '', d.runtime) ? d : null;
+    const frame = e.senderFrame;
+    return d && d.view && frame && frame === e.sender.mainFrame && e.sender === d.view.webContents && isKilnOrigin(frame.url, d.runtime) && new URL(frame.url).pathname === '/' ? d : null;
   }
 
   /** The dock a message came from: its project window's page, its undocked window's header, or its Kiln view. */
@@ -211,6 +215,7 @@ export class KilnDocks {
       e.preventDefault();
       if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     });
+    wc.on('will-redirect', (e, url) => { if (!isKilnOrigin(url, d.runtime)) e.preventDefault(); });
     wc.on('did-finish-load', () => wc.send('kiln:dock-state', d.window ? 'undocked' : 'docked'));
     wc.on('render-process-gone', () => this.host.log('warn', 'the Kiln view stopped; it reloads when shown again'));
     d.view = view;

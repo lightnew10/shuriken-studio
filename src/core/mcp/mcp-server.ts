@@ -261,7 +261,7 @@ export class ShurikenMcpServer {
   private buildServer(caller: CallerContext): McpServer {
     const server = new McpServer(
       { name: this.info.name, version: this.info.version },
-      { capabilities: { logging: {} }, instructions: this.content.instructions(caller) },
+      { capabilities: { logging: {} }, instructions: this.content.instructions(caller), maxToolInputElements: 20_000 },
     );
     for (const def of this.tools.visibleTo(caller)) {
       server.registerTool(
@@ -318,7 +318,7 @@ export class ShurikenMcpServer {
   }
 }
 
-function readJson(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<unknown> {
+function readJson(req: IncomingMessage, limit = 4 * 1024 * 1024): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;

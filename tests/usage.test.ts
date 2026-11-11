@@ -26,7 +26,7 @@ describe('usage readings end when their window resets', () => {
     expect(liveUtilization(s.windows, clock.now)).toBe(1);
     expect(usage.canStartRun('claude').ok).toBe(false);
     // Said plainly in the top bar: whose limit, and when work goes on.
-    expect(usage.canStartRun('claude').reason).toMatch(/^Claude's usage limit is reached; work resumes at \d{1,2}:\d{2}\s?[AP]M$/);
+    expect(usage.canStartRun('claude').reason).toBe(`Claude's usage limit is reached; work resumes at ${new Date(clock.now + 60_000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }).replace(/[  ]/g, ' ')}`);
     // The limit reset: the reading is gone (not a stale 100%), and work may start.
     clock.now += 61_000;
     s = usage.snapshot('claude');

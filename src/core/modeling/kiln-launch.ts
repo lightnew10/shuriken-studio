@@ -76,6 +76,8 @@ function startDetached(exe: string): void {
 }
 
 export interface KilnLauncherOptions {
+  /** Injectable installation discovery keeps tests independent of the user's installed Kiln. */
+  findExecutable?: (configured: string | null, runtimeFile: string) => string | null;
   runtimeFile: () => string;
   /** Asks Kiln whether it answers (a forced health check). */
   check: () => Promise<{ ok: boolean; detail: string }>;
@@ -117,12 +119,12 @@ export class KilnLauncher {
   }
 
   facts(answers: boolean): KilnStartFacts {
-    return { answers, processAlive: this.alive(), exe: findKilnExe(this.o.configured().trim() || null, this.o.runtimeFile()), allowed: this.permitted };
+    return { answers, processAlive: this.alive(), exe: (this.o.findExecutable ?? findKilnExe)(this.o.configured().trim() || null, this.o.runtimeFile()), allowed: this.permitted };
   }
 
   /** Kiln is on this PC: its exe is known, or one is running. */
   get installed(): boolean {
-    return this.alive() || !!findKilnExe(this.o.configured().trim() || null, this.o.runtimeFile());
+    return this.alive() || !!(this.o.findExecutable ?? findKilnExe)(this.o.configured().trim() || null, this.o.runtimeFile());
   }
 
   /** Kiln doesn't answer now, but a kiln_request would bring it up (it is starting, or Shuriken can start it). */

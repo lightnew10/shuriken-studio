@@ -52,7 +52,11 @@ interface CodexStatus {
   detail: string;
   signedIn: boolean;
   authDetail: string | null;
+  account: string | null;
+  plan: string | null;
+  rateLimits: { primary?: { usedPercent: number }; secondary?: { usedPercent: number } } | null;
 }
+type CodexLimits = { maxDurationMs: number; maxTokens: number };
 
 interface AccountsInfo {
   accounts: Account[];
@@ -262,6 +266,8 @@ function AccountsSection() {
 function ProvidersSection() {
   const info = useRpc<ProvidersInfo>('providers.assignments');
   const codex = useRpc<CodexStatus>('providers.codex.status');
+  const limits = useRpc<CodexLimits>('providers.codex.limits');
+  const [savingLimits, setSavingLimits] = useState(false);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -339,20 +345,21 @@ function ProvidersSection() {
               <Button size="sm" kind="ghost" icon={<RefreshCw size={13} />} title="Check Codex login" onClick={() => codex.reload()}>
                 Refresh
               </Button>
-              {codex.data?.installed && (
+              {codex.data?.installed && !ready && (
                 <Button size="sm" kind={ready ? 'ghost' : 'primary'} icon={<LogIn size={13} />} onClick={() => setSigning(true)}>
-                  {ready ? 'Sign in again' : 'Sign in with ChatGPT'}
+                  Sign in with ChatGPT
                 </Button>
               )}
             </div>
           </div>
           {!codex.data?.installed && (
             <p className="text-[12px] text-faint">
-              Install the official CLI using npm install -g @openai/codex, restart Shuriken, then sign in.
+              Shuriken supports Codex CLI 0.166.0. Check the installed version, then refresh.
             </p>
           )}
           <p className="text-[12px] text-faint">
-            Codex quota percentages are not available here. You can select it directly or enable automatic Claude → Codex fallback below.
+            {ready ? [codex.data?.account, codex.data?.plan].filter(Boolean).join(' · ') || 'ChatGPT' : 'Only a ChatGPT login is supported.'}
+            {ready && ` · Primary quota used: ${codex.data?.rateLimits?.primary?.usedPercent ?? 'unknown'}${codex.data?.rateLimits?.primary ? '%' : ''} · Secondary: ${codex.data?.rateLimits?.secondary?.usedPercent ?? 'unknown'}${codex.data?.rateLimits?.secondary ? '%' : ''}`}
           </p>
         </div>
       </Section>
@@ -367,9 +374,9 @@ function ProvidersSection() {
             </Button>
           </div>
           {(['fast', 'balanced', 'deep'] as const).map((tier) => {
-            const current = catalog.data?.selected[tier] ?? 'default';
+            const current = catalog.data?.selected[tier] ?? '';
             const available = catalog.data?.models ?? [];
-            const oldModel = current !== 'default' && !available.some((m) => m.id === current);
+            const oldModel = current !== '' && !available.some((m) => m.id === current);
             return (
               <Field key={tier} label={tier === 'fast' ? 'Fast — small tasks' : tier === 'balanced' ? 'Balanced — everyday tasks' : 'Deep — complex tasks'}>
                 <select
@@ -379,7 +386,7 @@ function ProvidersSection() {
                   onChange={(e) => void setTierModel(tier, e.target.value)}
                   aria-label={`Codex model for ${tier}`}
                 >
-                  <option value="default">Codex CLI default (not pinned)</option>
+                  <option value="">Select an explicit model (Astra excluded)</option>
                   {oldModel && <option value={current} disabled>{current} — no longer in catalog</option>}
                   {available.map((model) => (
                     <option key={model.id} value={model.id}>
@@ -399,6 +406,24 @@ function ProvidersSection() {
           {catalog.error && <ErrorNote error={catalog.error} />}
           <ErrorNote error={modelError} />
         </div>
+      </Section>
+      <Section title="Codex run limits" hint="Limits apply to new runs. The token limit interrupts the run once Codex reports it reached.">
+        {limits.data && (
+          <form key={JSON.stringify(limits.data)} className="card space-y-3 px-4 py-4" onSubmit={async (event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            setSavingLimits(true); setError(null);
+            try {
+              await rpc('providers.codex.setLimits', { maxDurationMs: Number(form.get('duration')) * 1000, maxTokens: Number(form.get('tokens')) });
+              limits.reload();
+            } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+            finally { setSavingLimits(false); }
+          }}>
+            <Field label="Maximum duration (seconds)"><input aria-label="Maximum duration (seconds)" className={inputClass} name="duration" type="number" min={10} max={3600} required defaultValue={Math.round(limits.data.maxDurationMs / 1000)} /></Field>
+            <Field label="Maximum tokens"><input aria-label="Maximum tokens" className={inputClass} name="tokens" type="number" min={1000} max={2_000_000} required defaultValue={limits.data.maxTokens} /></Field>
+            <Button type="submit" size="sm" disabled={savingLimits}>Save limits</Button>
+          </form>
+        )}
       </Section>
       <Section title="Automatic quota fallback" hint="When all connected Claude accounts are blocked by their quota, future Claude-assigned agent runs can use Codex. They return to Claude after the reported quota reset, without interrupting running Codex agents.">
         <div className="card px-4">

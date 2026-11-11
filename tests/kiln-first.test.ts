@@ -35,6 +35,7 @@ const modeling = new KilnModeling(
     resourcesDir,
     runtimeFile: () => kiln.runtimeFile,
     launch: {
+      findExecutable: () => exe === kiln.exe ? kiln.exe : null,
       configured: () => exe,
       allowed: () => allowed,
       spawn: (path) => {

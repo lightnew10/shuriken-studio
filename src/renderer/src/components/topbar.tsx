@@ -367,7 +367,7 @@ function CostChip() {
         className="tabular flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] whitespace-nowrap text-dim ring-1 ring-line transition-colors hover:bg-white/5 hover:text-text"
       >
         <Receipt size={13} className="text-faint" />
-        {usdText(c.totalUsd)}
+        {c.unknownRuns && c.totalUsd === 0 ? 'Cost unknown' : usdText(c.totalUsd)}{c.unknownRuns && c.totalUsd > 0 ? ' + unknown' : ''}
       </button>
       <Popover open={open} align="right" width={360}>
         <div className="max-h-[70vh] overflow-y-auto px-2.5 py-1.5">
@@ -375,7 +375,8 @@ function CostChip() {
             <span className="text-[10.5px] font-semibold tracking-[0.12em] text-faint uppercase">API-equivalent cost</span>
             {span && <span className="text-[11px] text-faint">{span}</span>}
           </div>
-          <div className="tabular mt-1 text-[22px] leading-tight font-medium text-text">{usdText(c.totalUsd)}</div>
+          <div className="tabular mt-1 text-[22px] leading-tight font-medium text-text">{c.unknownRuns && c.totalUsd === 0 ? 'Cost unknown' : usdText(c.totalUsd)}</div>
+          {!!c.unknownRuns && <p className="mt-2 text-[12px] text-dim">{c.unknownRuns} run(s) have no reported monetary cost. The total excludes them.</p>}
           {c.categories.length > 0 ? (
             <div className="mt-3 space-y-2">
               {c.categories.map((x) => (

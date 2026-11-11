@@ -523,7 +523,7 @@ export function createRouter(core: Core): Record<string, Handler> {
       const allowed = new Set(catalog.map((model) => model.id));
       for (const tier of ['fast', 'balanced', 'deep'] as const) {
         const chosen = models[tier];
-        if (chosen !== 'default' && (!isAllowedCodexModel(chosen) || !allowed.has(chosen)))
+        if (chosen !== '' && (!isAllowedCodexModel(chosen) || !allowed.has(chosen)))
           throw new Error('Unsupported or excluded Codex model for ' + tier + ': ' + chosen);
       }
       return core.providers.setCodexModels(models);
@@ -533,7 +533,13 @@ export function createRouter(core: Core): Record<string, Handler> {
       if (!provider) throw new Error('Codex provider is not registered');
       const detected = await provider.detect();
       const auth = detected.installed ? await provider.auth() : null;
-      return { installed: detected.installed, version: detected.version, detail: detected.detail, signedIn: !!auth?.authenticated, authDetail: auth?.detail ?? null };
+      const rateLimits = auth?.authenticated && 'usage' in provider ? await (provider as import('../providers/codex/codex-provider').CodexProvider).usage().catch(() => null) : null;
+      return { installed: detected.installed, version: detected.version, detail: detected.detail, signedIn: !!auth?.authenticated, authDetail: auth?.detail ?? null, account: auth?.account ?? null, plan: auth?.plan ?? null, rateLimits };
+    },
+    'providers.codex.limits': () => core.settingJson('provider.codex.limits', { maxDurationMs: 20 * 60_000, maxTokens: 200_000 }),
+    'providers.codex.setLimits': ({ maxDurationMs, maxTokens }: { maxDurationMs: number; maxTokens: number }) => {
+      if (!Number.isInteger(maxDurationMs) || maxDurationMs < 10_000 || maxDurationMs > 60 * 60_000 || !Number.isInteger(maxTokens) || maxTokens < 1000 || maxTokens > 2_000_000) throw new Error('Codex limits: 10 seconds–60 minutes and 1,000–2,000,000 tokens.');
+      core.setSettingJson('provider.codex.limits', { maxDurationMs, maxTokens }); return { maxDurationMs, maxTokens };
     },
     'providers.codex.signIn': async ({ cols, rows }: { cols?: number; rows?: number } = {}) => {
       const provider = core.providers.get('codex');

@@ -1,87 +1,62 @@
-import { describe, expect, it, vi, afterEach } from 'vitest';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
-import { CodexProvider } from '../src/core/providers/codex/codex-provider';
-import type { AgentRunRequest } from '../src/core/providers/types';
-
-vi.mock('node:child_process', () => ({
-  spawn: vi.fn(),
+import { afterEach, expect, it, vi } from 'vitest';
+import type { AgentRunRequest, AgentEvent } from '../src/core/providers/types';
+const state = vi.hoisted(() => ({ auth: 'chatgpt', native: false, text: '{"ok":true}', tokenCount: 20, requests: [] as Array<{ method: string; params: any }> }));
+vi.mock('../src/core/providers/codex/codex-process', () => ({ codexExecutable: () => 'codex-test.exe', codexVersion: () => '0.166.0', executeCodexCommand: vi.fn() }));
+vi.mock('../src/core/providers/codex/app-server', () => ({
+  isolatedCodexOverrides: async () => ['mcp_servers.personal.enabled=false'], verifyCodexIsolation: vi.fn(async () => {}),
+  CodexAppServer: class {
+    onNotification: (method: string, params: any) => void = () => {};
+    onFailure = () => {};
+    async initialize() {}
+    async close() {}
+    async request(method: string, params: any) {
+      state.requests.push({ method, params });
+      if (method === 'account/read') return { account: { type: state.auth, email: 'fixture@example.invalid', planType: 'plus' } };
+      if (method === 'model/list') return { data: [{ model: 'model-a', displayName: 'Model A' }] };
+      if (method === 'thread/start' || method === 'thread/resume') return { thread: { id: 'thread-123' } };
+      if (method === 'turn/start') { setImmediate(() => {
+        this.onNotification('thread/tokenUsage/updated', { threadId: 'thread-123', tokenUsage: { total: { inputTokens: state.tokenCount, outputTokens: 2 } } });
+        this.onNotification('item/completed', { threadId: 'thread-123', item: { type: state.native ? 'commandExecution' : 'agentMessage', id: 'item-1', text: state.text } });
+        this.onNotification('turn/completed', { threadId: 'thread-123', turn: { status: 'completed' } });
+      }); return { turn: { id: 'turn-1' } }; }
+      return {};
+    }
+  },
 }));
+import { CodexProvider } from '../src/core/providers/codex/codex-provider';
 
-import { spawn } from 'node:child_process';
-
-type ChildStub = EventEmitter & { stdin: PassThrough; stdout: PassThrough; stderr: PassThrough; kill: () => boolean };
-
-function fakeChild(lines: unknown[], exitCode = 0): ChildStub {
-  const child = new EventEmitter() as ChildStub;
-  child.stdin = new PassThrough();
-  child.stdout = new PassThrough();
-  child.stderr = new PassThrough();
-  child.kill = vi.fn(() => { child.emit('close', 1); return true; });
-  setImmediate(() => {
-    for (const item of lines) child.stdout.write(JSON.stringify(item) + '\n');
-    child.stdout.end();
-    child.emit('close', exitCode);
-  });
-  return child;
+afterEach(() => { state.auth = 'chatgpt'; state.native = false; state.text = '{"ok":true}'; state.tokenCount = 20; state.requests.length = 0; });
+const request = (): AgentRunRequest => ({ runId: 'fixture', role: 'critic', cwd: process.cwd(), instructions: 'Read only', prompt: 'A synthetic task', modelTier: 'fast', builtinTools: ['read_files'], toolServers: [], permission: async () => ({ allow: false, message: 'Denied' }), signal: new AbortController().signal, outputSchema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false } });
+async function run(extra: Partial<AgentRunRequest> = {}) {
+  const events: AgentEvent[] = [];
+  for await (const event of new CodexProvider(() => 'model-a').run({ ...request(), ...extra }).events) events.push(event);
+  return events.find((e) => e.type === 'completed')!;
 }
-
-const mockedSpawn = vi.mocked(spawn);
-afterEach(() => vi.resetAllMocks());
-
-describe('Codex provider', () => {
-  it('is registered as an independent subscription provider without automatic model selection', () => {
-    const p = new CodexProvider();
-    expect(p.id).toBe('codex');
-    expect(p.modelForTier('deep')).toBe('default');
-    expect(p.declaredCapabilities().mcp).toBe(true);
-    expect(p.declaredCapabilities().approvalWorkflow).toBe(false);
-  });
-
-  it('accepts a ChatGPT Codex CLI sign-in and refuses API-key billing in subscription mode', async () => {
-    // commandOutput looks at CLI text rather than JSON for authentication.
-    const api = fakeChild([]);
-    api.stdout.write('Logged in using an API key\n');
-    mockedSpawn.mockReturnValueOnce(api as never);
-    expect((await new CodexProvider().auth()).authenticated).toBe(false);
-
-    const chatgpt = fakeChild([]);
-    chatgpt.stdout.write('Logged in using ChatGPT\n');
-    mockedSpawn.mockReturnValueOnce(chatgpt as never);
-    expect((await new CodexProvider().auth()).authenticated).toBe(true);
-  });
-
-  it('translates JSONL lifecycle, file changes and usage into Shuriken run events', async () => {
-    const cli = fakeChild([
-      { type: 'thread.started', thread_id: 'test-session-123' },
-      { type: 'item.completed', item: { id: 'change-1', type: 'file_change', status: 'completed', changes: [{ path: 'src/hello.luau', kind: 'add' }] } },
-      { type: 'item.completed', item: { id: 'msg-1', type: 'agent_message', text: '{"ok":true}' } },
-      { type: 'turn.completed', usage: { input_tokens: 123, output_tokens: 45 } },
-    ]);
-    mockedSpawn.mockReturnValueOnce(cli as never);
-    const request: AgentRunRequest = {
-      runId: 'run-1',
-      role: 'implementer',
-      instructions: 'Stay in the workspace',
-      prompt: 'Create a small test file',
-      cwd: process.cwd(),
-      modelTier: 'balanced',
-      toolServers: [],
-      builtinTools: ['read_files', 'edit_files'],
-      providerSandbox: 'workspace-write',
-      outputSchema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] },
-      permission: async () => ({ allow: true }),
-      signal: new AbortController().signal,
-    };
-    const handle = new CodexProvider((tier) => tier === 'balanced' ? 'balanced-model' : 'default').run(request);
-    const received = [];
-    for await (const evt of handle.events) received.push(evt);
-    expect(received.find((e) => e.type === 'started')).toMatchObject({ providerSessionId: 'test-session-123' });
-    expect(received.find((e) => e.type === 'tool_call')).toMatchObject({ toolClass: 'edit_files', input: { changes: [{ path: 'src/hello.luau', kind: 'add' }] } });
-    expect(received.find((e) => e.type === 'completed')).toMatchObject({
-      ok: true, inputTokens: 123, outputTokens: 45, structured: { ok: true },
-    });
-    expect(mockedSpawn).toHaveBeenCalledWith('codex', expect.arrayContaining(['exec', '--json', '--sandbox', 'workspace-write', '--model', 'balanced-model']), expect.any(Object));
-    expect(received.find((e) => e.type === 'started')).toMatchObject({ model: 'balanced-model' });
-  });
+it('requires explicit non-Astra models', () => {
+  expect(() => new CodexProvider().modelForTier('deep')).toThrow(/explicit/);
+  expect(() => new CodexProvider(() => 'astra').modelForTier('fast')).toThrow();
+  expect(() => new CodexProvider(() => 'default').modelForTier('fast')).toThrow();
+});
+it('checks structured authentication and refuses API and unknown modes', async () => {
+  for (const mode of ['apiKey', 'unknown']) { state.auth = mode; expect((await new CodexProvider().auth()).authenticated).toBe(false); expect(await run()).toMatchObject({ ok: false, errorKind: 'auth' }); }
+  expect(state.requests.some((r) => r.method === 'turn/start')).toBe(false);
+});
+it('runs with native read-only sandbox, validates JSON schema, and reports unknown cost', async () => {
+  expect(await run()).toMatchObject({ ok: true, structured: { ok: true }, inputTokens: 20, outputTokens: 2, costKnown: false });
+  expect(state.requests.find((r) => r.method === 'thread/start')?.params).toMatchObject({ approvalPolicy: 'never', sandbox: 'read-only', model: 'model-a' });
+});
+it('rejects invalid output instead of reporting successful structured work', async () => {
+  state.text = '{"ok":"wrong type"}'; expect(await run()).toMatchObject({ ok: false, errorKind: 'output_schema' });
+});
+it('refuses a monetary budget that cannot be guaranteed', async () => {
+  expect(await run({ maxBudgetUsd: 1 })).toMatchObject({ ok: false, errorKind: 'budget' });
+  expect(state.requests).toHaveLength(0);
+});
+it('interrupts unexpected native execution and exceeded tokens', async () => {
+  state.native = true; expect(await run()).toMatchObject({ ok: false });
+  state.native = false; expect(await run({ maxTokens: 1 })).toMatchObject({ ok: false, errorKind: 'budget' });
+});
+it('does not resume legacy exec sessions or sessions belonging to another account', async () => {
+  expect(await run({ resumeSessionId: 'old-thread' })).toMatchObject({ ok: true });
+  expect(state.requests.some((r) => r.method === 'thread/resume')).toBe(false);
 });

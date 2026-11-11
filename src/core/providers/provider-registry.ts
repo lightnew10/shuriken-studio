@@ -7,7 +7,7 @@ import { nowIso } from '@shared/ids';
 
 export type CodexTierModels = Record<ModelTier, string>;
 
-export const DEFAULT_CODEX_MODELS: CodexTierModels = { fast: 'default', balanced: 'default', deep: 'default' };
+export const DEFAULT_CODEX_MODELS: CodexTierModels = { fast: '', balanced: '', deep: '' };
 
 export interface ProviderAssignments {
   /** Provider used when a role has no explicit assignment. */
@@ -58,14 +58,14 @@ export class ProviderRegistry {
     for (const tier of ['fast', 'balanced', 'deep'] as const) {
       const model = chosen[tier];
       // Never run Astra even when old data or a hand-edited DB contains it.
-      if (model === 'default' || (typeof model === 'string' && isAllowedCodexModel(model))) result[tier] = model;
+      if (typeof model === 'string' && isAllowedCodexModel(model)) result[tier] = model;
     }
     return result;
   }
 
   setCodexModels(models: CodexTierModels): CodexTierModels {
     for (const tier of ['fast', 'balanced', 'deep'] as const) {
-      if (models[tier] !== 'default' && !isAllowedCodexModel(models[tier]))
+      if (models[tier] !== '' && !isAllowedCodexModel(models[tier]))
         throw new Error('Invalid or excluded Codex model for ' + tier + '. Astra cannot be selected.');
     }
     const next = { fast: models.fast, balanced: models.balanced, deep: models.deep };

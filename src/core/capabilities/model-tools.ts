@@ -159,6 +159,7 @@ export function registerModelTools(reg: ToolRegistry, d: ModelToolDeps): { uploa
       let meta = store.get(args.name);
       // A Blender model of several parts owns its name, even where an older build123d model had it.
       const whole = store.parts(args.name);
+      if (meta?.exportError || whole.some((part) => part.exportError)) return errorOutput(`The Roblox export for ${args.name} is stale. Export the updated scene before placing it.`);
       if (whole.length && (!meta || meta.instances?.length || (meta.source !== 'blender' && whole.some((x) => x.source === 'blender')))) {
         // A whole Blender model (one part per material): one Roblox Model, parts in their arrangement.
         const parts = whole;

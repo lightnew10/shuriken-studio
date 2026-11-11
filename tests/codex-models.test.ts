@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+vi.mock('../src/core/providers/codex/codex-process', () => ({ codexExecutable: () => 'codex-test.exe', codexEnvironment: () => ({}), stopCodexProcess: async (child: { kill: () => void }) => { child.kill(); } }));
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 import { spawn } from 'node:child_process';
@@ -65,7 +66,7 @@ describe('Codex model tier catalogue', () => {
       { id: 'pro-model', name: 'Pro', isDefault: false },
     ]);
     expect(calls.map((c) => c.method)).toEqual(['initialize', 'initialized', 'model/list']);
-    expect(mockedSpawn).toHaveBeenCalledWith('codex', ['app-server', '--listen', 'stdio://'], expect.any(Object));
+    expect(mockedSpawn).toHaveBeenCalledWith('codex-test.exe', expect.arrayContaining(['app-server', '--listen', 'stdio://']), expect.objectContaining({ shell: false }));
     expect(child.kill).toHaveBeenCalled();
   });
 });

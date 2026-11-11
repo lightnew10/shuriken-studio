@@ -103,6 +103,11 @@ export function describeCall(tool: string, args: unknown): string {
       return 'importing a licensed track';
     case 'audio_upload':
       return 'uploading sounds to Roblox';
+    case 'workspace_read_file': return 'reading a project file';
+    case 'workspace_search': return 'searching project files';
+    case 'workspace_write_file': return 'writing a project file';
+    case 'workspace_exec': return 'running a sandboxed project command';
+    case 'blender_create_box':
     case 'blender_python':
       return `modeling ${typeof a.model === 'string' ? a.model : 'a prop'} in Blender${typeof a.step === 'string' && a.step ? ` (${a.step})` : ''}`;
     case 'blender_render':

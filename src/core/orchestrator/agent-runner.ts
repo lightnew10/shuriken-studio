@@ -12,8 +12,10 @@ import { errorMessage } from '../log';
 import { resetFromMessage, type UsageTracker } from './usage-tracker';
 import type { AccountService } from '../accounts/account-service';
 import { hiddenToolsFor, OUTPUT_SCHEMAS, tierFor, type RoleDefinition } from '../agents/roles';
-import { decideFileWrite, decideShell } from '../permissions/policy';
+import { approvalSignature, decideFileWrite, decideShell } from '../permissions/policy';
 import { j, pj } from '../db/store';
+import { releaseMutations, reserveMutation } from './mutations';
+import { WORKSPACE_TOOLS, workspacePath } from '../capabilities/workspace-tools';
 
 export type Completion = Extract<AgentEvent, { type: 'completed' }>;
 
@@ -78,6 +80,8 @@ interface RunRow {
   error: string | null;
   provider_session_id: string | null;
   continues_run_id?: string | null;
+  provider_session_meta?: string | null;
+  cost_known?: number;
 }
 
 export function hydrateRun(r: RunRow): AgentRun {
@@ -93,6 +97,7 @@ export function hydrateRun(r: RunRow): AgentRun {
     contextPath: r.context_path,
     contextTokensEst: r.context_tokens_est,
     costUsd: r.cost_usd,
+    costKnown: r.cost_known !== 0,
     inputTokens: r.input_tokens,
     outputTokens: r.output_tokens,
     numTurns: r.num_turns,
@@ -173,8 +178,8 @@ export class AgentRunner {
     if (!a) return;
     // Known before the provider stops: the run ends as interrupted however its stream ends.
     this.interrupting.add(runId);
-    await a.interrupt().catch(() => {});
     a.abort.abort();
+    await a.interrupt().catch(() => {});
   }
 
   async interruptAll(): Promise<void> {
@@ -219,7 +224,11 @@ export class AgentRunner {
 
   async run(spec: RunSpec): Promise<RunOutcome> {
     const { project, role, task } = spec;
-    const provider: IAgentProvider = this.deps.providers.forRole(role.id);
+    const previous = spec.continuesRunId ? this.getRun(project, spec.continuesRunId) : null;
+    const provider: IAgentProvider = spec.resumeSessionId && previous
+      ? this.deps.providers.get(previous.providerId) ?? this.deps.providers.preferredForRole(role.id)
+      : this.deps.providers.forRole(role.id);
+    const resumeId = previous && previous.providerId !== provider.id ? null : spec.resumeSessionId ?? null;
     const account = this.deps.accounts?.active(provider.id) ?? null;
     const usageKey = this.deps.accounts ? this.deps.accounts.usageKey(provider.id, account) : provider.id;
     const startedMs = Date.now();
@@ -227,7 +236,7 @@ export class AgentRunner {
     // its run after it: that one's calls stay refused).
     if (this.deps.usage.canStartRun(usageKey).ok) this.atLimit.delete(usageKey);
     // The PC's own login (dir '') needs no override: the provider uses its default credentials.
-    const accountEnv = account?.dir && provider.accountEnv ? provider.accountEnv(account.dir) : undefined;
+    const accountEnv = provider.id !== 'codex' && account?.dir && provider.accountEnv ? provider.accountEnv(account.dir) : undefined;
     const runId = newId('run');
     const settings = project.settings();
     const startedAt = nowIso();
@@ -235,7 +244,9 @@ export class AgentRunner {
     this.emitRun(project, runId);
     spec.onRun?.(runId);
 
-    const brief = spec.resumeSessionId ? (spec.contextText ?? spec.directive) : null;
+    const sessionMeta = spec.continuesRunId ? pj<import('../providers/types').ProviderSessionMetadata | null>(project.store.get<{ provider_session_meta: string | null }>('SELECT provider_session_meta FROM runs WHERE id = ?', [spec.continuesRunId])?.provider_session_meta, null) : null;
+    // Codex must always have a reconstructible full context if compatibility checks reject its cache.
+    const brief = resumeId && provider.id !== 'codex' ? (spec.contextText ?? spec.directive) : null;
     const context: ContextPackage = brief
       ? { runId, role: role.id, taskId: task?.id ?? null, sections: [], text: brief, tokensEst: Math.round(brief.length / 4), budget: 0, omitted: [], path: null }
       : spec.contextText
@@ -250,10 +261,10 @@ export class AgentRunner {
     project.store.run('UPDATE runs SET context_path = ?, context_tokens_est = ? WHERE id = ?', [context.path, context.tokensEst, runId]);
     // A run continued after a switch of accounts: its session lives with the account that ran it, and is brought
     // over to the one that runs now (otherwise the provider finds no session and the agent starts over).
-    if (spec.resumeSessionId && provider.carrySession && this.deps.accounts) {
+    if (resumeId && provider.carrySession && this.deps.accounts) {
       try {
         const dirs = [...this.deps.accounts.list(provider.id).map((a) => a.dir), ''];
-        const how = provider.carrySession(spec.resumeSessionId, account?.dir ?? '', dirs);
+        const how = provider.carrySession(resumeId, account?.dir ?? '', dirs);
         if (how === 'carried') project.audit.event({ kind: 'run.notice', title: `${role.name} continues on ${account?.label ?? 'the default login'} a session that began on another account`, runId, taskId: task?.id ?? null, role: role.id });
       } catch (e) {
         this.deps.log.warn('Could not bring a session over to the active account', errorMessage(e));
@@ -261,20 +272,38 @@ export class AgentRunner {
     }
     project.audit.event({ kind: 'run.started', title: `${role.name} ${spec.continuesRunId ? 'continued' : 'started'}${task ? `: ${task.title}` : ''}`, runId, taskId: task?.id ?? null, role: role.id, detail: { provider: provider.id, account: account?.label ?? null, contextTokens: context.tokensEst, omitted: context.omitted, continues: spec.continuesRunId ?? null } });
 
+    const abort = new AbortController();
+    const toolsAbort = new AbortController();
+    let calls = 0;
+    let limitHit = false;
     const token = this.deps.mcp.issueToken({
       kind: 'agent',
       runId,
       taskId: task?.id ?? null,
       role: role.id,
       providerId: provider.id,
-      allowedTools: role.appTools ? new Set(role.appTools) : null,
+      projectRoot: project.root,
+      allowedTools: role.appTools ? new Set(provider.id === 'codex'
+        ? [...role.appTools, ...WORKSPACE_TOOLS, ...(role.appTools.includes('blender_python') ? ['blender_create_box'] : [])]
+        : role.appTools) : null,
+      builtinTools: role.builtinTools,
+      executeCommand: provider.executeCommand?.bind(provider),
+      builtinPermission: (req) => this.decide(project, req, { runId, taskId: task?.id ?? null, role: role.id, builtin: role.builtinTools, editOnly: role.editOnly }),
+      runSignal: AbortSignal.any([abort.signal, toolsAbort.signal]),
+      fileChange: (state, paths) => {
+        project.audit.appendRunMessage(runId, seq++, 'system', { event: 'file_change', state, paths });
+        for (const path of paths) if (state === 'completed') editedFiles.add(path);
+      },
       hiddenTools: hiddenToolsFor(role),
       ...(role.drafts ? { drafts: true } : {}),
       // Once its account is at its usage limit, nothing more the run asks for is done (limitReached).
-      refuses: (tool: string, args: unknown) => (this.atLimit.has(usageKey) ? AT_LIMIT : (spec.refuses?.(tool, args) ?? null)),
+      refuses: (tool: string, args: unknown) => {
+        if (abort.signal.aborted) return 'Run stopped';
+        if (provider.id === 'codex' && ++calls > (role.maxTurns ?? 100)) { limitHit = true; abort.abort(); return 'Maximum tool calls reached'; }
+        return this.atLimit.has(usageKey) ? AT_LIMIT : (spec.refuses?.(tool, args) ?? null);
+      },
       ...(spec.notes ? { notes: spec.notes } : {}),
     });
-    const abort = new AbortController();
     const onOuterAbort = () => abort.abort();
     // A stop that came in while the run was being set up must still stop it (the listener alone would miss it).
     if (spec.signal.aborted) abort.abort();
@@ -295,10 +324,11 @@ export class AgentRunner {
         prompt: context.text,
         cwd: project.root,
         modelTier: tierFor(role, settings.modelTier),
-        // Codex exec cannot relay Shuriken's per-command approvals yet.
-        // In ask mode, restrict its filesystem sandbox to read-only; MCP tools
-        // still pass through Shuriken's own server-side approval policy.
-        ...(provider.id === 'codex' ? { providerSandbox: this.deps.permissionMode?.(project) === 'autonomous' ? 'workspace-write' as const : 'read-only' as const } : {}),
+        ...(provider.id === 'codex' ? {
+          providerSandbox: 'read-only' as const,
+          stopTools: () => toolsAbort.abort(),
+          permissionFingerprint: JSON.stringify([this.deps.permissionMode?.(project) ?? 'ask', project.settings().escalation, role.appTools, role.drafts, [...(hiddenToolsFor(role) ?? [])], role.editOnly?.toString()]),
+        } : {}),
         effort: this.deps.effortFor?.(role) ?? role.effort,
         toolServers: [this.deps.mcp.refFor(token, 'shuriken')],
         builtinTools: role.builtinTools,
@@ -308,7 +338,8 @@ export class AgentRunner {
         permission: (req) => this.decide(project, req, { runId, taskId: task?.id ?? null, role: role.id, builtin: role.builtinTools, editOnly: role.editOnly }),
         signal: abort.signal,
         env: accountEnv,
-        resumeSessionId: spec.resumeSessionId ?? null,
+        resumeSessionId: resumeId,
+        sessionMetadata: sessionMeta,
         ...(spec.images?.length ? { images: spec.images } : {}),
       });
       this.active.set(runId, { interrupt: () => handle.interrupt(), abort, team: role.tier !== 'chat' && !role.id.startsWith('copilot'), usageKey, pending: () => waitingOn.size });
@@ -317,6 +348,7 @@ export class AgentRunner {
       for await (const ev of handle.events) {
         switch (ev.type) {
           case 'started': {
+            if (ev.sessionMetadata) project.store.run('UPDATE runs SET provider_session_meta = ? WHERE id = ?', [j(ev.sessionMetadata), runId]);
             project.store.run(`UPDATE runs SET status = 'running', model = ?, provider_session_id = ? WHERE id = ?`, [ev.model, ev.providerSessionId, runId]);
             this.emitRun(project, runId);
             const shuriken = ev.toolServers.find((s) => s.name === 'shuriken');
@@ -378,6 +410,9 @@ export class AgentRunner {
           case 'completed':
             completion = ev;
             break;
+          case 'file_change':
+            for (const path of ev.paths) if (ev.state === 'completed') editedFiles.add(path);
+            break;
         }
       }
     } catch (e) {
@@ -385,15 +420,19 @@ export class AgentRunner {
     } finally {
       spec.signal.removeEventListener('abort', onOuterAbort);
       this.active.delete(runId);
+      toolsAbort.abort();
       this.deps.mcp.revokeToken(token);
+      releaseMutations(project.root, runId);
       for (const p of pendingTools.values()) project.audit.endToolCall(p.auditId, { status: 'error', error: 'No result (run ended)', durationMs: Date.now() - p.started });
     }
 
     let comp: Completion = completion ?? { type: 'completed', ok: false, resultText: null, structured: null, costUsd: 0, inputTokens: 0, outputTokens: 0, numTurns: 0, durationMs: 0, stopReason: null, error: 'Provider produced no completion', errorKind: 'unknown' };
+    if (limitHit) comp = { ...comp, ok: false, errorKind: 'max_turns', error: 'Maximum number of tool calls reached' };
+    project.store.run('UPDATE runs SET cost_known = ?, provider_session_meta = COALESCE(?, provider_session_meta) WHERE id = ?', [comp.costKnown === false ? 0 : 1, comp.sessionMetadata ? j(comp.sessionMetadata) : null, runId]);
     // Stopped from here (interrupt, a stop, the usage limit's stand-down): an interruption, whatever the provider made of it.
     const atLimit = this.stoppedAtLimit.delete(runId);
     if (!comp.ok && atLimit) comp = { ...comp, errorKind: 'rate_limit', error: 'Stopped at the usage limit: its account had reached it' };
-    else if (!comp.ok && (abort.signal.aborted || this.interrupting.has(runId)) && comp.errorKind !== 'rate_limit' && comp.errorKind !== 'interrupted') comp = { ...comp, errorKind: 'interrupted', error: comp.error ?? 'Interrupted' };
+    else if (!limitHit && !comp.ok && (abort.signal.aborted || this.interrupting.has(runId)) && comp.errorKind !== 'rate_limit' && comp.errorKind !== 'interrupted') comp = { ...comp, errorKind: 'interrupted', error: comp.error ?? 'Interrupted' };
     this.interrupting.delete(runId);
     const interrupted = comp.errorKind === 'interrupted' || spec.signal.aborted;
     const status: RunStatus = comp.ok ? 'completed' : interrupted ? 'interrupted' : 'failed';
@@ -508,10 +547,16 @@ export class AgentRunner {
       // A class of built-in tool the role doesn't have (a dock copilot: no shell, and no file edits in a draft turn) is refused, whatever offered it.
       decision = { outcome: 'deny', notify: false, reason: `${who.role} has no ${req.toolClass === 'shell' ? 'shell' : 'file edits'} in this turn`, rule: null };
     } else if (req.toolClass === 'edit_files') {
-      const path = String(req.input.file_path ?? req.input.notebook_path ?? '');
+      let path: string;
+      try { path = workspacePath(project.root, String(req.input.file_path ?? req.input.notebook_path ?? ''), true, req.tool === 'workspace_write_file'); }
+      catch (e) { return { allow: false, message: errorMessage(e) }; }
       decision = decideFileWrite(path, [project.root]);
       // A role that may edit only some files (a dock copilot putting its work in the game): everything else is refused.
       if (decision.outcome === 'allow' && who.editOnly && !who.editOnly(relative(project.root, resolve(path)).split(sep).join('/'))) decision = { outcome: 'deny', notify: false, reason: `${who.role} may not edit ${path}: it is outside its own field's files. Put what is needed there in your handoff for the director`, rule: null };
+      if (decision.outcome === 'allow' && req.tool !== 'workspace_write_file') {
+        try { reserveMutation(project.root, who.runId, [path]); }
+        catch { decision = { outcome: 'deny', notify: false, reason: 'Another run owns this file', rule: null }; }
+      }
       what = `${req.tool} ${path}`;
     } else if (req.toolClass === 'shell') {
       const cmd = String(req.input.command ?? '');
@@ -522,9 +567,13 @@ export class AgentRunner {
     } else {
       decision = { outcome: 'allow', notify: false, reason: 'allowed', rule: null };
     }
-    const signature = `${who.taskId ?? who.runId}|${req.tool}|${JSON.stringify(req.input).slice(0, 500)}`;
+    const signature = approvalSignature(who.taskId ?? who.runId, req.tool, req.input);
     if (decision.outcome === 'ask' && this.deps.approvals.has(signature)) decision = { ...decision, outcome: 'allow' };
     if (decision.outcome === 'allow') {
+      if (req.toolClass === 'shell' && req.tool !== 'workspace_exec') {
+        try { reserveMutation(project.root, who.runId, ['*']); }
+        catch { return { allow: false, message: 'Another run owns a project mutation lease' }; }
+      }
       // Autonomous mode: what would have asked the user runs, and the timeline records it as auto-approved.
       if (decision.autoApproved) project.audit.event({ kind: 'policy.auto_approved', severity: 'info', title: `Auto-approved: ${what}`.slice(0, 300), runId: who.runId, taskId: who.taskId, role: who.role, detail: { what, command: req.toolClass === 'shell' ? String(req.input.command ?? '').slice(0, 2000) : undefined, reason: decision.reason, rule: decision.rule } });
       else if (decision.notify) project.audit.event({ kind: 'policy.notify', severity: 'warning', title: decision.reason, runId: who.runId, taskId: who.taskId, role: who.role, detail: { what } });

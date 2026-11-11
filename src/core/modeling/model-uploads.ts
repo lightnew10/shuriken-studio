@@ -121,6 +121,7 @@ export class ModelUploads {
     const store = new ModelStore(root);
     // The store is the truth: the part may have been exported again since the caller listed it.
     const part = store.get(m.name) ?? m;
+    if (part.exportError) return Promise.resolve({ name: part.name, assetId: null, meta: part, why: 'the latest export failed; re-export before uploading' });
     const have = ModelStore.assetId(part);
     if (have) return Promise.resolve({ name: part.name, assetId: have, meta: part, reused: true });
     return this.queue.run(

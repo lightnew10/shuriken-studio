@@ -194,6 +194,7 @@ export interface TaskFailure {
 export type RunStatus = 'starting' | 'running' | 'completed' | 'failed' | 'interrupted' | 'cancelled';
 
 export interface AgentRun {
+  costKnown?: boolean;
   id: string;
   taskId: string | null;
   role: string;

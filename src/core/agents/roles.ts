@@ -16,7 +16,7 @@ export const WORKSHOP_TOOLS = {
   effects: ['vfx_presets', 'vfx_create', 'vfx_build', 'vfx_play', 'vfx_remove', 'vfx_measure', 'vfx_texture', 'vfx_cutscene'],
   audio: ['audio_sfx', 'audio_ambience', 'audio_stinger', 'audio_music', 'audio_music_edit', 'audio_score', 'audio_sample_find', 'audio_sample_add', 'audio_samples', 'audio_find', 'audio_import', 'audio_add', 'audio_use', 'audio_upload', 'audio_remove'],
   // rig_build and model_gear turn a finished model into a rig or into gear: the modeler's last step (and the animator's, for a rig).
-  modeling: ['blender_python', 'blender_scene', 'blender_render', 'blender_check', 'blender_undo', 'model_view', 'model_remove', 'kiln_request', 'kiln_builds', 'kiln_import', 'rig_build', 'model_gear'],
+  modeling: ['blender_python', 'blender_create_box', 'blender_scene', 'blender_render', 'blender_check', 'blender_undo', 'model_view', 'model_remove', 'kiln_request', 'kiln_builds', 'kiln_import', 'rig_build', 'model_gear'],
   // Briefing Kiln for the world's kits and checking what came back, without Blender (the environment artist).
   kiln: ['kiln_request', 'kiln_builds', 'kiln_import', 'model_view'],
   research: ['research_add_source', 'research_add_claim'],
