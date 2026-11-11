@@ -3,6 +3,7 @@ import { Check, Copy, Globe2, LogOut, MessageSquare, Radio, RefreshCw, Users } f
 import { Button, ErrorNote, Field, Pill, cx, inputClass } from '../components/ui';
 import { rpc, useRpc } from '../lib/rpc';
 import { navigate } from '../lib/nav';
+import { CollaborationPool } from './collaboration-pool';
 
 type Peer = { id: string; name: string; role: 'host' | 'guest' };
 type Message = { id: string; from: string; sender: string; text: string; at: string };
@@ -31,7 +32,8 @@ interface CollaborationStatus {
   guestRequestsEnabled: boolean;
   hostOnline: boolean;
   error: string | null;
-  remoteAgentsEnabled: false;
+  remoteAgentsEnabled: boolean;
+  pendingAdmission: string | null;
 }
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -100,7 +102,7 @@ export function CollaborationSettings() {
 
   return (
     <>
-      <Section title="Collaboration" description="Host one private session or join a friend's Shuriken over the Internet. Both PCs keep their own AI credentials. This first milestone synchronizes human messages and presence; shared AI execution, project files and Roblox Studio control are not yet enabled.">
+      <Section title="Collaboration" description="Work together in one project. The host applies changes locally and each participant keeps their own AI credentials.">
         <div className="card space-y-4 px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[13px] text-text">
@@ -116,17 +118,17 @@ export function CollaborationSettings() {
             <p className="text-[12px] text-warn">The relay connection was lost. Reconnecting for up to 10 minutes. Remote work is unavailable until connected.</p>
           )}
           {session.data?.error && <p role="status" className="text-[12px] text-warn">{session.data.error}</p>}
-          <p className="text-[11.5px] text-warn">Session messages and visible Director/task text currently transit over TLS, but are not yet end-to-end encrypted: the relay operator could inspect them. Never include secrets or private account information.</p>
           <Field label="Your display name">
             <input className={inputClass} placeholder="Displayed to collaborators" value={name} maxLength={48} disabled={active || busy} onChange={(e) => setName(e.target.value)} />
           </Field>
           {!active && (
             <>
-              <Field label="Your Cloudflare relay URL (hosts only)" hint="Deploy the optional relay to your Cloudflare account once. Guests only need the invitation.">
+              <Field label="Your Cloudflare relay URL (hosts only)" hint="Use a relay that supports encrypted collaboration v2. Guests only need the invitation.">
                 <input className={inputClass} placeholder="https://shuriken-collaboration-relay.example.workers.dev" value={relay} disabled={busy} onChange={(e) => setRelay(e.target.value)} />
               </Field>
               <Button kind="primary" disabled={busy || !relay.trim() || !name.trim()} icon={<Globe2 size={14} />}
                 onClick={() => void run(saveAndHost)}>Host a session</Button>
+              <Button size="sm" disabled={busy} onClick={() => void run(() => rpc('collaboration.restore', { role: 'host' }))}>Resume saved host session</Button>
               <div className="border-t border-line pt-4">
                 <Field label="Join an existing session" hint="Paste a private invite link from another Shuriken. Do not share the link publicly.">
                   <input className={inputClass} placeholder="https://.../room/...#join=..." value={invite} disabled={busy} onChange={(e) => setInvite(e.target.value)} />
@@ -134,6 +136,7 @@ export function CollaborationSettings() {
                 <div className="mt-3">
                   <Button disabled={busy || !name.trim() || !invite.trim()} icon={<Users size={14} />}
                     onClick={() => void run(join)}>Join session</Button>
+                  <Button size="sm" disabled={busy} onClick={() => void run(() => rpc('collaboration.restore', { role: 'guest' }))}>Resume saved guest session</Button>
                 </div>
               </div>
             </>
@@ -142,7 +145,7 @@ export function CollaborationSettings() {
             <>
               {hostname && (
                 <div className="space-y-2">
-                  <Field label="Private invitation link" hint="Share only with people you trust. Anyone holding this link can join until you end the session.">
+                  <Field label="Private invitation link" hint="Use within 10 minutes. You admit one collaborator from this screen.">
                     <input className={inputClass} value={invitation} readOnly onFocus={(e) => e.target.select()} />
                   </Field>
                   <Button size="sm" kind="ghost" disabled={busy || !invitation} icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copy}>
@@ -150,6 +153,7 @@ export function CollaborationSettings() {
                   </Button>
                 </div>
               )}
+              {hostname && session.data?.pendingAdmission && <Button kind="primary" disabled={busy} onClick={() => void run(() => rpc('collaboration.admit'))}>Admit {session.data.pendingAdmission}</Button>}
               {hostname && (
                 <div className="space-y-2 rounded-lg border border-line bg-surface2/45 px-3 py-3">
                   <label className="flex cursor-pointer items-start gap-2.5">
@@ -163,10 +167,7 @@ export function CollaborationSettings() {
                     <span className="text-[12px] text-text">Allow trusted guests to ask the Director to modify this project</span>
                   </label>
                   <p className="text-[11.5px] leading-relaxed text-faint">
-                    Off by default. Enabling lets invited participants start host-side agents automatically;
-                    existing host permissions still apply. Do not enable for untrusted invitees:
-                    they can initiate AI work, consume the host's authorized quota and influence game files.
-                    This permission can be switched off at any time.
+                    Admission allows ordinary shared tasks through the API pool. The host approves risky actions.
                   </p>
                 </div>
               )}
@@ -185,13 +186,14 @@ export function CollaborationSettings() {
               )}
               <Button kind="secondary" icon={<Users size={14} />} onClick={() => navigate('collaboration')}>Open shared workspace</Button>
               <Button kind="ghost" icon={<LogOut size={14} />} onClick={() => void run(() => rpc('collaboration.leave'))}>
-                {hostname ? 'End session for everyone' : 'Leave session immediately'}
+                {hostname ? 'Revoke access and end session' : 'Leave session'}
               </Button>
             </>
           )}
           <ErrorNote error={error || session.error} />
         </div>
       </Section>
+      {active && <CollaborationPool host={hostname} />}
       {active && (
         <Section title="Shared session chat" description="These are human-to-human messages, not prompts sent to the Director. ChatGPT / Claude quotas are not consumed by this chat. The host retains a bounded in-memory history; Cloudflare does not store the messages.">
           <div className="card space-y-3 px-4 py-4">
@@ -301,12 +303,6 @@ export function CollaborationSettings() {
           </div>
         </Section>
       )}
-      <Section title="Host-side collaboration and AI providers" description="Trusted guest requests now enter the host Director, and host task/agent states synchronize back to guests. Host-only Roblox execution does not require a second Studio. Provider account pooling and production-level permissions remain separate implementation milestones.">
-        <div className="card px-4 py-4 text-[12px] leading-relaxed text-dim">
-          Trusted guest instructions now reach the host Director when the host authorizes the session; only the host's local tools can change Roblox Studio. Existing host-side permission policies still govern tool execution, so invite only trusted collaborators. Models generated on the host require no transfer.  Option B is the target: agents and Roblox edits run on the host PC. The account catalog will accept owner-authorized subscriptions and API keys from host or guests, where each provider supports the execution model. OpenAI now documents an official open-source Sign in with ChatGPT flow for eligible plan-powered requests; Claude's consumer login has different, stricter integration rules. No guest credential pooling is enabled yet. Never paste API keys or login tokens into the session chat. The owner must explicitly approve any credential provisioning onto the host machine, which may be able to access those credentials.
-          <p className="mt-3 text-faint">Deployment instructions: collaboration/relay/README.md · Plan: docs/COLLABORATION_PLAN.md</p>
-        </div>
-      </Section>
     </>
   );
 }

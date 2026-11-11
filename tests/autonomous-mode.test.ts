@@ -218,6 +218,17 @@ describe('the tool gate (ToolRegistry)', () => {
       expect(events.some((e) => e.kind === 'policy.auto_approved')).toBe(false);
     }
   });
+
+  it('co-op forces host approval for publishing and external actions in autonomous mode', async () => {
+    const { reg, asked, ran } = registry('autonomous');
+    for (const tool of ['go_live', 'cloud_luau_run', 'roblox_run_luau']) {
+      const out = await reg.invoke(tool, {}, { ...caller, coop: true, providerId: 'openrouter' });
+      expect(out.isError, tool).toBe(true);
+      expect(JSON.stringify(out.content), tool).toContain('project host');
+    }
+    expect(asked).toEqual(['go_live', 'cloud_luau_run', 'roblox_run_luau']);
+    expect(ran).toEqual([]);
+  });
 });
 
 describe('agents running shell commands (AgentRunner.decide, through a real core)', () => {

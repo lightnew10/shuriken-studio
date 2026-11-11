@@ -24,6 +24,7 @@ Préserver les modifications préexistantes et actualiser la documentation aprè
 - Branche de développement : `feature/codex-integration`, base auditée `7400f17`.
 - Le rapport d'audit décrit la base ; le travail de stabilisation est local sur la même branche de développement. Aucun commit, push, déploiement ou publication implicite.
 - Pour Codex, lire [l'intégration](docs/CODEX_INTEGRATION.md) et [la qualification](docs/test-reports/CODEX_2026-11-11.md). Ne pas rétablir de voie native qui contourne ToolRegistry.
+- Pour la collaboration, lire [le guide coop v2](docs/COOP.md). Les secrets fournisseur restent dans le coffre du propriétaire. Les outils et approbations sont exécutés chez l’hôte.
 - Serena TypeScript disponible ; aucun graphe Graphify à l'ouverture. Ne pas installer ni envoyer le code à distance sans autorisation.
 - Les tests standard désactivent le Studio et le Kiln de l'utilisateur ; les E2E utilisent des comptes et applications réels : ne pas les lancer automatiquement.
 - Ne pas ouvrir un projet réel déjà verrouillé par un autre core. Utiliser des dossiers temporaires pour les vérifications.
@@ -35,6 +36,7 @@ Préserver les modifications préexistantes et actualiser la documentation aprè
 - `npm run typecheck` : réussie.
 - `npm run build` : réussie ; ceci ne valide ni le démarrage Electron ni l'installeur.
 - `npm test -- --maxWorkers=2 <fichiers>` : suites ciblées. `npm test -- --maxWorkers=4` : suite standard. Résultats, exclusions et différences avec l'audit dans le rapport de qualification.
+- `npm test -- tests/ai-routing.test.ts` vérifie les quotas et la reprise sur réponses simulées. Le parcours réel Groq et OpenRouter requiert les clés de test et l'activation explicite décrites dans le guide.
 - `npx vitest run --config vitest.e2e.config.ts tests/e2e/codex.e2e.ts` : uniquement sur autorisation de consommer le quota réel, avec `CODEX_LIVE=1` et `CODEX_LIVE_MODEL` explicite. Les quatre scénarios utilisent un projet isolé.
 - `node node_modules/vitest/vitest.mjs run --config docs/audits/2026-11-11/probes.config.mjs` : sept reproductions d'audit réussies ; elles démontrent des défauts, pas la conformité du produit.
 - `cmd /c Lancer-Shuriken.bat --self-test` : réussie, sans mise à jour ni lancement.

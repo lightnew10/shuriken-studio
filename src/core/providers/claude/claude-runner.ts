@@ -325,6 +325,7 @@ export function runClaude(req: AgentRunRequest, cfg: ClaudeRunnerConfig): AgentR
       for await (const m of q as AsyncIterable<SDKMessage>) {
         acct.observe(m);
         if (m.type === 'system' && m.subtype === 'init') {
+          if (!sawInit) req.onDispatch?.();
           sawInit = true;
           // The SDK's totals run on from the session's earlier runs: note where this run starts.
           if (req.resumeSessionId) startedFrom = readUsage(USAGE_READS.baselineTimeoutMs).then((t) => acct.startedFrom(t));

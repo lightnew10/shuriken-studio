@@ -6,9 +6,11 @@ import { decideToolCall, type PermissionClass, type PolicyDecision } from '../pe
 import { errorMessage } from '../log';
 import { withStudioCaller } from '../roblox/studio-context';
 import type { BuiltinToolClass, PermissionRequest, PermissionDecision } from '../providers/types';
+import { isFreeApi } from '../providers/free-api';
 
 /** Who is calling a tool. Resolved from the MCP bearer token or supplied by the UI/system. */
 export interface CallerContext {
+  coop?: boolean;
   projectRoot?: string;
   executeCommand?: (command: string, cwd: string, signal: AbortSignal, timeoutMs: number) => Promise<{ ok: boolean; output: string; error?: string }>;
   builtinTools?: readonly BuiltinToolClass[];
@@ -123,9 +125,10 @@ export interface CapabilityObserver {
  * The MCP server and the UI both call tools through `invoke`.
  */
 export class ToolRegistry {
+  private readonly activeCalls = new Map<string, Set<Promise<ToolOutput>>>();
   private readonly approvalStops = new WeakMap<CallerContext, Set<string>>();
   private stopApprovalRetries(caller: CallerContext, tool: string): void {
-    if (caller.providerId !== 'codex') return;
+    if (caller.providerId !== 'codex' && !isFreeApi(caller.providerId ?? '')) return;
     const stopped = this.approvalStops.get(caller) ?? new Set<string>();
     stopped.add(tool);
     this.approvalStops.set(caller, stopped);
@@ -163,9 +166,10 @@ export class ToolRegistry {
   }
 
   private isVisible(t: ToolDefinition, caller: CallerContext): boolean {
-    if (t.providerScope === 'codex-only' && caller.providerId !== 'codex') return false;
-    if ((t.providerScope === 'exclude-codex' || t.capability === 'app.plugins') && caller.providerId === 'codex') return false;
-    if (t.builtinClass && caller.providerId !== 'codex') return false;
+    const controlled = caller.providerId === 'codex' || isFreeApi(caller.providerId ?? '');
+    if (t.providerScope === 'codex-only' && !controlled) return false;
+    if ((t.providerScope === 'exclude-codex' || t.capability === 'app.plugins') && controlled) return false;
+    if (t.builtinClass && !controlled) return false;
     if (t.builtinClass === 'shell' && !caller.executeCommand) return false;
     if (t.builtinClass && (!caller.builtinTools?.includes(t.builtinClass) || !caller.builtinPermission)) return false;
     if (caller.allowedTools && !caller.allowedTools.has(t.name)) return false;
@@ -176,6 +180,25 @@ export class ToolRegistry {
   }
 
   async invoke(name: string, rawArgs: unknown, caller: CallerContext, signal: AbortSignal = new AbortController().signal, progress?: ToolProgress): Promise<ToolOutput> {
+    const result = this.invokeTool(name, rawArgs, caller, signal, progress);
+    if (!caller.runId) return result;
+    const runId = caller.runId;
+    const active = this.activeCalls.get(runId) ?? new Set<Promise<ToolOutput>>();
+    active.add(result);
+    this.activeCalls.set(runId, active);
+    try { return await result; }
+    finally {
+      active.delete(result);
+      if (!active.size) this.activeCalls.delete(runId);
+    }
+  }
+
+  /** Call only after closing the run's tool gate. The next run must see settled effects. */
+  async drain(runId: string): Promise<void> {
+    await Promise.allSettled(this.activeCalls.get(runId) ?? []);
+  }
+
+  private async invokeTool(name: string, rawArgs: unknown, caller: CallerContext, signal: AbortSignal, progress?: ToolProgress): Promise<ToolOutput> {
     if (caller.runSignal) signal = AbortSignal.any([signal, caller.runSignal]);
     if (signal.aborted) return errorOutput('Run stopped');
     const def = this.tools.get(name);
@@ -207,7 +230,12 @@ export class ToolRegistry {
       }
     }
 
-    const decision: PolicyDecision = caller.kind === 'ui' ? { outcome: 'allow', notify: false, reason: 'user action', rule: null } : decideToolCall({ permission: def.permission, tool: name, title: def.title, args: parsed.data }, this.policy.rules(), this.policy.mode?.() ?? 'ask');
+    let decision: PolicyDecision = caller.kind === 'ui' ? { outcome: 'allow', notify: false, reason: 'user action', rule: null } : decideToolCall({ permission: def.permission, tool: name, title: def.title, args: parsed.data }, this.policy.rules(), this.policy.mode?.() ?? 'ask');
+    const ordinaryCoopWrite = /^(workspace_write_file|roblox_sync_push|blender_create_box|task_update_verification|task_add_evidence)$/.test(name);
+    const readOnly = (def.permission === 'read' || def.permission === 'roblox_read') && !/(run_luau|playtest|execute|publish|upload)/i.test(name);
+    if (caller.coop && decision.outcome !== 'deny' && !readOnly && !ordinaryCoopWrite) {
+      decision = { outcome: 'ask', notify: true, owner: true, reason: 'This collaboration action requires the project host’s approval', rule: decision.rule };
+    }
     const auditId =
       this.audit?.beginToolCall({
         runId: caller.runId,

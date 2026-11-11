@@ -91,6 +91,15 @@ function requestSecret(key: string): Promise<string | null> {
   });
 }
 
+function saveCoopSecret(key: string, value: string | null): Promise<boolean> {
+  const id = secretSeq++;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { secretWaiters.delete(id); resolve(false); }, 10_000);
+    secretWaiters.set(id, (reply) => { clearTimeout(timer); resolve(reply === 'saved'); });
+    send({ type: 'coop-secret-set', id, key, value });
+  });
+}
+
 const renderWaiters = new Map<number, (v: string | null) => void>();
 let renderSeq = 1;
 
@@ -189,7 +198,7 @@ port.on('message', async (e: { data: Incoming }) => {
   const msg = e.data;
   if (msg.type === 'init') {
     try {
-      core = await Core.create({ dataDir: msg.dataDir, resourcesDir: msg.resourcesDir, appVersion: msg.appVersion, integrations: true, secrets: requestSecret, render: requestRender, forgeGpu: requestForge, media: requestMedia, safeMode: msg.safeMode === true, openProject: msg.openProject, resumeBuild: msg.resume === true });
+      core = await Core.create({ dataDir: msg.dataDir, resourcesDir: msg.resourcesDir, appVersion: msg.appVersion, integrations: true, secrets: requestSecret, saveCoopSecret, render: requestRender, forgeGpu: requestForge, media: requestMedia, safeMode: msg.safeMode === true, openProject: msg.openProject, resumeBuild: msg.resume === true });
       core.setAgentsElsewhere(elsewhere);
       router = createRouter(core);
       core.bus.onAny((channel, payload) => send({ type: 'event', channel, payload }));

@@ -1,4 +1,5 @@
 import { relative, resolve, sep } from 'node:path';
+import { z } from 'zod';
 import { newId, nowIso } from '@shared/ids';
 import type { AgentRun, PermissionMode, RunStatus, Task } from '@shared/domain';
 import type { ProjectContext } from '../projects/project-service';
@@ -16,6 +17,11 @@ import { approvalSignature, decideFileWrite, decideShell } from '../permissions/
 import { j, pj } from '../db/store';
 import { releaseMutations, reserveMutation } from './mutations';
 import { WORKSPACE_TOOLS, workspacePath } from '../capabilities/workspace-tools';
+import type { CallerContext, ToolRegistry } from '../capabilities/tool-registry';
+import { isSubscription, type ModelQuotas } from '../providers/model-quotas';
+import type { RunRouting } from '../providers/run-routing';
+import { filesEditedBy } from '../roblox/code-sync';
+import { EffectJournal } from '../collaboration/effect-journal';
 
 export type Completion = Extract<AgentEvent, { type: 'completed' }>;
 
@@ -110,6 +116,9 @@ export function hydrateRun(r: RunRow): AgentRun {
 
 export interface RunnerDeps {
   providers: ProviderRegistry;
+  routing?: RunRouting;
+  quotas?: ModelQuotas;
+  tools?: ToolRegistry;
   mcp: ShurikenMcpServer;
   compiler: ContextCompiler;
   bus: EventBus;
@@ -222,15 +231,43 @@ export class AgentRunner {
     return rows.map(hydrateRun);
   }
 
+  availability(project: ProjectContext, role: RoleDefinition, taskId?: string) {
+    const shared = !!taskId && !!project.store.get('SELECT 1 FROM coop_requests WHERE task_id=?', [taskId]);
+    if (!shared && !project.settings().coopEnabled && !isSubscription(this.deps.providers.preferredForRole(role.id).id)) return undefined;
+    return this.deps.routing?.pick(project, role.id, tierFor(role, project.settings().modelTier), { tools: true, images: false }, false, true, shared);
+  }
+
   async run(spec: RunSpec): Promise<RunOutcome> {
     const { project, role, task } = spec;
-    const previous = spec.continuesRunId ? this.getRun(project, spec.continuesRunId) : null;
-    const provider: IAgentProvider = spec.resumeSessionId && previous
+    const tier = tierFor(role, project.settings().modelTier);
+    const preferred = this.deps.providers.preferredForRole(role.id);
+    const shared = !!task && !!project.store.get('SELECT 1 FROM coop_requests WHERE task_id=?', [task.id]);
+    const cooperative = shared || project.settings().coopEnabled === true;
+    const route = cooperative || isSubscription(preferred.id) ? this.deps.routing?.pick(project, role.id, tier, { tools: true, images: !!spec.images?.length, imageCount: spec.images?.length }, true, true, shared) : undefined;
+    const checkpoint = task && route ? project.store.get<{ id: string; outcome_kind: string | null; status: string }>(
+      'SELECT id, outcome_kind, status FROM runs WHERE task_id = ? AND role = ? ORDER BY started_at DESC, id DESC LIMIT 1', [task.id, role.id],
+    ) : null;
+    const interruptedCheckpoint = checkpoint && (checkpoint.outcome_kind === 'rate_limit' || checkpoint.status === 'interrupted') ? checkpoint.id : null;
+    const previousId = spec.continuesRunId ?? interruptedCheckpoint;
+    const previous = previousId ? this.getRun(project, previousId) : null;
+    const provider: IAgentProvider = route?.ok ? route.provider : route ? preferred : spec.resumeSessionId && previous
       ? this.deps.providers.get(previous.providerId) ?? this.deps.providers.preferredForRole(role.id)
       : this.deps.providers.forRole(role.id);
-    const resumeId = previous && previous.providerId !== provider.id ? null : spec.resumeSessionId ?? null;
-    const account = this.deps.accounts?.active(provider.id) ?? null;
-    const usageKey = this.deps.accounts ? this.deps.accounts.usageKey(provider.id, account) : provider.id;
+    const account = route?.ok ? route.account : this.deps.accounts?.active(provider.id) ?? null;
+    const usageKey = route?.ok ? route.usageKey : this.deps.accounts ? this.deps.accounts.usageKey(provider.id, account) : provider.id;
+    const selectedModel = route?.ok ? route.model : null;
+    const api = route?.ok ? route.api : undefined;
+    const previousRoute = previousId ? project.store.get<{ provider_route: string | null }>('SELECT provider_route FROM runs WHERE id = ?', [previousId])?.provider_route : null;
+    const compatible = !previous || previous.providerId === provider.id && (!selectedModel || previous.model === selectedModel) && (!previousRoute || previousRoute === usageKey);
+    const resumeId = !compatible || api ? null : spec.resumeSessionId ?? null;
+    const confirmed = interruptedCheckpoint ? filesEditedBy(project, interruptedCheckpoint) : [];
+    const checkpointCalls = interruptedCheckpoint ? project.audit.toolCalls({ runId: interruptedCheckpoint, limit: 120 }) : [];
+    const pending = new Set(checkpointCalls.filter((call) => call.status === 'pending' || call.status === 'error' && /no result|interrupted|cancel|abort|timed out/i.test(call.error ?? '')).map((call) => call.tool));
+    const lastEffects = checkpointCalls.filter((call) => call.status === 'ok').map((call) => call.tool);
+    const recovery = interruptedCheckpoint && !resumeId
+      ? `\nResume task from the current project state. Completed tool calls: ${[...new Set(lastEffects)].join(', ') || 'none recorded'}. Changed files to inspect: ${confirmed.slice(0, 50).join(', ') || 'none recorded'}. Do not repeat completed effects. Inspect current state before changes. Tools with uncertain effects requiring review: ${[...pending].join(', ') || 'none recorded'}.`
+      : '';
+    const directive = spec.directive + recovery;
     const startedMs = Date.now();
     // A run starting where there is room again lifts the refusal (a task assigned just before the limit may still start
     // its run after it: that one's calls stay refused).
@@ -238,9 +275,10 @@ export class AgentRunner {
     // The PC's own login (dir '') needs no override: the provider uses its default credentials.
     const accountEnv = provider.id !== 'codex' && account?.dir && provider.accountEnv ? provider.accountEnv(account.dir) : undefined;
     const runId = newId('run');
-    const settings = project.settings();
     const startedAt = nowIso();
-    project.store.run(`INSERT INTO runs (id, task_id, role, provider_id, status, started_at, continues_run_id, app_version) VALUES (?, ?, ?, ?, 'starting', ?, ?, ?)`, [runId, task?.id ?? null, role.id, provider.id, startedAt, spec.continuesRunId ?? null, this.deps.appVersion ?? null]);
+    project.store.run(`INSERT INTO runs (id, task_id, role, provider_id, model, status, started_at, continues_run_id, app_version, provider_route) VALUES (?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?)`, [runId, task?.id ?? null, role.id, provider.id, selectedModel, startedAt, previousId, this.deps.appVersion ?? null, usageKey]);
+    const switchingReason = route?.ok ? route.reason ?? (previous && !compatible ? 'The preferred route is available again or its settings changed' : null) : null;
+    if (switchingReason) project.audit.event({ kind: 'provider.switched', severity: 'info', title: `${provider.displayName} · ${selectedModel ?? tier}: ${switchingReason}`, taskId: task?.id ?? null, runId });
     this.emitRun(project, runId);
     spec.onRun?.(runId);
 
@@ -250,12 +288,13 @@ export class AgentRunner {
     const context: ContextPackage = brief
       ? { runId, role: role.id, taskId: task?.id ?? null, sections: [], text: brief, tokensEst: Math.round(brief.length / 4), budget: 0, omitted: [], path: null }
       : spec.contextText
-      ? { runId, role: role.id, taskId: task?.id ?? null, sections: [], text: `${spec.directive}\n\n${spec.contextText}`, tokensEst: Math.round((spec.directive.length + spec.contextText.length) / 4), budget: 0, omitted: [], path: null }
+      ? { runId, role: role.id, taskId: task?.id ?? null, sections: [], text: `${directive}\n\n${spec.contextText}`, tokensEst: Math.round((directive.length + spec.contextText.length) / 4), budget: 0, omitted: [], path: null }
       : this.deps.compiler.compile(project, {
           runId,
           role,
           task,
-          directive: spec.directive,
+          directive,
+          ...(api ? { budgetTokens: api.provider === 'groq' ? 3000 : 10_000 } : {}),
           robloxStatus: await this.deps.robloxStatus().catch(() => null),
         });
     project.store.run('UPDATE runs SET context_path = ?, context_tokens_est = ? WHERE id = ?', [context.path, context.tokensEst, runId]);
@@ -276,14 +315,16 @@ export class AgentRunner {
     const toolsAbort = new AbortController();
     let calls = 0;
     let limitHit = false;
-    const token = this.deps.mcp.issueToken({
+    const controlled = provider.id === 'codex' || !!api;
+    const caller: CallerContext = {
+      coop: cooperative,
       kind: 'agent',
       runId,
       taskId: task?.id ?? null,
       role: role.id,
       providerId: provider.id,
       projectRoot: project.root,
-      allowedTools: role.appTools ? new Set(provider.id === 'codex'
+      allowedTools: role.appTools ? new Set(controlled
         ? [...role.appTools, ...WORKSPACE_TOOLS, ...(role.appTools.includes('blender_python') ? ['blender_create_box'] : [])]
         : role.appTools) : null,
       builtinTools: role.builtinTools,
@@ -299,11 +340,15 @@ export class AgentRunner {
       // Once its account is at its usage limit, nothing more the run asks for is done (limitReached).
       refuses: (tool: string, args: unknown) => {
         if (abort.signal.aborted) return 'Run stopped';
-        if (provider.id === 'codex' && ++calls > (role.maxTurns ?? 100)) { limitHit = true; abort.abort(); return 'Maximum tool calls reached'; }
+        if (api?.authorized && !api.authorized()) return 'The shared key is unavailable';
+        if (controlled && ++calls > (role.maxTurns ?? 100)) { limitHit = true; abort.abort(); return 'Maximum tool calls reached'; }
+        const permission = this.deps.tools?.get(tool)?.permission;
+        if (pending.has(tool) && permission !== 'read' && permission !== 'roblox_read') return 'This action has an uncertain result from the prior run. Inspect state and request human review before repeating it.';
         return this.atLimit.has(usageKey) ? AT_LIMIT : (spec.refuses?.(tool, args) ?? null);
       },
       ...(spec.notes ? { notes: spec.notes } : {}),
-    });
+    };
+    const token = api ? null : this.deps.mcp.issueToken(caller);
     const onOuterAbort = () => abort.abort();
     // A stop that came in while the run was being set up must still stop it (the listener alone would miss it).
     if (spec.signal.aborted) abort.abort();
@@ -315,22 +360,52 @@ export class AgentRunner {
     const waitingOn = new Set<string>();
     let seq = 0;
     let completion: Completion | null = null;
+    let reserved = false, dispatched = false, routeWait = false;
 
     try {
+      if (route && !route.ok) { routeWait = true; throw new Error(route.reason); }
+      if (abort.signal.aborted) throw new Error('Run interrupted');
+      if (selectedModel && isSubscription(provider.id) && this.deps.quotas) {
+        reserved = this.deps.quotas.reserve(provider.id, selectedModel, runId);
+        if (!reserved) { routeWait = true; throw new Error(`${selectedModel}: daily launch limit reached`); }
+      }
+      const toolRegistry = this.deps.tools;
+      const journal = cooperative && task ? new EffectJournal(project.store) : null;
+      const definitions = api && toolRegistry ? toolRegistry.visibleTo(caller).map((tool) => ({
+          name: tool.name, description: tool.description, parameters: z.toJSONSchema(z.object(tool.input), { unrepresentable: 'any', io: 'input' }),
+        })) : [];
       const handle = provider.run({
         runId,
         role: role.id,
         instructions: role.instructions,
         prompt: context.text,
         cwd: project.root,
-        modelTier: tierFor(role, settings.modelTier),
+        modelTier: tier,
+        ...(selectedModel ? { model: selectedModel } : {}),
+        onDispatch: () => { dispatched = true; },
+        ...(api && toolRegistry ? {
+          apiAllowed: () => project.settings().freeApiProviders?.includes(api.provider) === true && (!api.authorized || api.authorized()),
+          localTools: { definitions, invoke: async (name, input, signal) => {
+            const invoke = async () => {
+              const result = await toolRegistry.invoke(name, input, caller, signal);
+              return {
+                text: result.content.map((part) => part.type === 'text' ? part.text : '[Image recorded in local evidence]').join('\n'),
+                error: result.isError === true,
+                images: result.content.filter((part) => part.type === 'image'),
+              };
+            };
+            const permission = toolRegistry.get(name)?.permission;
+            const readonly = (permission === 'read' || permission === 'roblox_read') && !/(run_luau|playtest|execute)/i.test(name);
+            return journal && task && !readonly ? journal.apply(task.id, runId, name, input, signal, invoke) : invoke();
+          } },
+        } : {}),
         ...(provider.id === 'codex' ? {
           providerSandbox: 'read-only' as const,
           stopTools: () => toolsAbort.abort(),
           permissionFingerprint: JSON.stringify([this.deps.permissionMode?.(project) ?? 'ask', project.settings().escalation, role.appTools, role.drafts, [...(hiddenToolsFor(role) ?? [])], role.editOnly?.toString()]),
         } : {}),
         effort: this.deps.effortFor?.(role) ?? role.effort,
-        toolServers: [this.deps.mcp.refFor(token, 'shuriken')],
+        toolServers: token ? [this.deps.mcp.refFor(token, 'shuriken')] : [],
         builtinTools: role.builtinTools,
         maxTurns: role.maxTurns,
         maxBudgetUsd: spec.maxBudgetUsd,
@@ -416,19 +491,21 @@ export class AgentRunner {
         }
       }
     } catch (e) {
-      completion = { type: 'completed', ok: false, resultText: null, structured: null, costUsd: 0, inputTokens: 0, outputTokens: 0, numTurns: 0, durationMs: 0, stopReason: null, error: errorMessage(e), errorKind: 'unknown' };
+      completion = { type: 'completed', ok: false, resultText: null, structured: null, costUsd: 0, costKnown: false, inputTokens: 0, outputTokens: 0, numTurns: 0, durationMs: 0, stopReason: null, error: errorMessage(e), errorKind: routeWait ? 'rate_limit' : 'unknown' };
     } finally {
       spec.signal.removeEventListener('abort', onOuterAbort);
-      this.active.delete(runId);
       toolsAbort.abort();
-      this.deps.mcp.revokeToken(token);
+      if (token) this.deps.mcp.revokeToken(token);
+      if (route) await this.deps.tools?.drain(runId);
+      this.active.delete(runId);
+      if (reserved && !dispatched) this.deps.quotas?.release(runId);
       releaseMutations(project.root, runId);
       for (const p of pendingTools.values()) project.audit.endToolCall(p.auditId, { status: 'error', error: 'No result (run ended)', durationMs: Date.now() - p.started });
     }
 
     let comp: Completion = completion ?? { type: 'completed', ok: false, resultText: null, structured: null, costUsd: 0, inputTokens: 0, outputTokens: 0, numTurns: 0, durationMs: 0, stopReason: null, error: 'Provider produced no completion', errorKind: 'unknown' };
     if (limitHit) comp = { ...comp, ok: false, errorKind: 'max_turns', error: 'Maximum number of tool calls reached' };
-    project.store.run('UPDATE runs SET cost_known = ?, provider_session_meta = COALESCE(?, provider_session_meta) WHERE id = ?', [comp.costKnown === false ? 0 : 1, comp.sessionMetadata ? j(comp.sessionMetadata) : null, runId]);
+    project.store.run('UPDATE runs SET cost_known = ?, provider_session_meta = COALESCE(?, provider_session_meta), outcome_kind = ? WHERE id = ?', [comp.costKnown === false ? 0 : 1, comp.sessionMetadata ? j(comp.sessionMetadata) : null, comp.errorKind, runId]);
     // Stopped from here (interrupt, a stop, the usage limit's stand-down): an interruption, whatever the provider made of it.
     const atLimit = this.stoppedAtLimit.delete(runId);
     if (!comp.ok && atLimit) comp = { ...comp, errorKind: 'rate_limit', error: 'Stopped at the usage limit: its account had reached it' };
@@ -450,15 +527,15 @@ export class AgentRunner {
       // request went in before): lifting the limit for it would start tasks only to fail them again.
       const hit = this.atLimit.get(usageKey);
       if (hit === undefined || startedMs > hit) {
-        this.deps.usage.recordSuccess(usageKey);
+        this.deps.usage.recordSuccess(usageKey, startedMs);
         this.atLimit.delete(usageKey);
       }
     } else if (comp.errorKind === 'rate_limit') {
       // Any run that hits a usage limit marks its account as limited, so the next pick switches accounts
       // (or waits for the reset) — for task runs and the director alike.
       // (A run this stopped at the limit adds nothing: the run that hit it recorded it.)
-      if (!atLimit) {
-        this.deps.usage.recordRateLimit(usageKey, { status: 'rejected', window: 'five_hour', utilization: 1, resetsAt: resetFromMessage(comp.error ?? ''), raw: { error: comp.error } });
+      if (!atLimit && !routeWait && !api) {
+        if (!this.deps.usage.snapshot(usageKey).blocked) this.deps.usage.recordRateLimit(usageKey, { status: 'rejected', window: 'five_hour', utilization: 1, resetsAt: resetFromMessage(comp.error ?? ''), raw: { error: comp.error } });
         // Only the account's own usage limit stands the team down, not a moment of overload or a stray 429.
         if (isUsageLimit(comp.error)) this.limitReached(project, usageKey, runId);
       }
@@ -484,19 +561,31 @@ export class AgentRunner {
    */
   async quick(spec: { role: RoleDefinition; prompt: string; cwd: string; signal: AbortSignal; images?: AgentRunRequest['images']; project?: ProjectContext | null; label?: string; taskId?: string | null }): Promise<{ structured: unknown; costUsd: number } | null> {
     const { role } = spec;
-    const provider: IAgentProvider = this.deps.providers.forRole(role.id);
-    const account = this.deps.accounts?.active(provider.id) ?? null;
-    const usageKey = this.deps.accounts ? this.deps.accounts.usageKey(provider.id, account) : provider.id;
+    const tier = tierFor(role, {});
+    const preferred = this.deps.providers.preferredForRole(role.id);
+    const route = spec.project?.settings().coopEnabled || isSubscription(preferred.id) ? this.deps.routing?.pick(spec.project ?? null, role.id, tier, { tools: false, images: !!spec.images?.length, imageCount: spec.images?.length }, true) : undefined;
+    if (route && !route.ok) return null;
+    const provider = route?.provider ?? this.deps.providers.forRole(role.id);
+    const account = route ? route.account : this.deps.accounts?.active(provider.id) ?? null;
+    const usageKey = route?.usageKey ?? (this.deps.accounts ? this.deps.accounts.usageKey(provider.id, account) : provider.id);
     const accountEnv = account?.dir && provider.accountEnv ? provider.accountEnv(account.dir) : undefined;
+    const runId = newId('run'), model = route?.model;
+    const quota = model && isSubscription(provider.id) ? this.deps.quotas : undefined;
+    if (spec.signal.aborted) return null;
+    if (quota && model && isSubscription(provider.id) && !quota.reserve(provider.id, model, runId)) return null;
+    let dispatched = false;
     let completion: Completion | null = null;
     try {
       const handle = provider.run({
-        runId: newId('run'),
+        runId,
         role: role.id,
         instructions: role.instructions,
         prompt: spec.prompt,
         cwd: spec.cwd,
-        modelTier: tierFor(role, {}),
+        modelTier: tier,
+        ...(model ? { model } : {}),
+        onDispatch: () => { dispatched = true; },
+        ...(route?.api ? { apiAllowed: () => spec.project?.settings().freeApiProviders?.includes(route.api!.provider) === true && (!route.api!.authorized || route.api!.authorized()) } : {}),
         effort: role.effort,
         toolServers: [],
         builtinTools: [],
@@ -514,10 +603,15 @@ export class AgentRunner {
     } catch (e) {
       this.deps.log.warn(`${role.name} failed`, errorMessage(e));
       return null;
+    } finally {
+      if (quota && !dispatched) quota.release(runId);
     }
     if (!completion) return null;
     this.deps.usage.recordRun(usageKey, completion.costUsd);
     if (completion.ok) this.deps.usage.recordSuccess(usageKey);
+    else if (isSubscription(provider.id) && completion.errorKind === 'rate_limit' && !this.deps.usage.snapshot(usageKey).blocked) {
+      this.deps.usage.recordRateLimit(usageKey, { status: 'rejected', window: 'unknown', utilization: 1, resetsAt: resetFromMessage(completion.error ?? ''), raw: { error: completion.error } });
+    }
     if (spec.project && completion.costUsd > 0) this.book(spec.project, { source: role.id, label: spec.label ?? role.name, costUsd: completion.costUsd, taskId: spec.taskId ?? null });
     return completion.ok && completion.structured ? { structured: completion.structured, costUsd: completion.costUsd } : null;
   }

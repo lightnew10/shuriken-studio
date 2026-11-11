@@ -84,6 +84,9 @@ export class UsageTracker {
     if (info.status === 'rejected') {
       snap.blocked = true;
       snap.blockedUntil = resetsAt ? resetsAt * 1000 : this.now() + DEFAULT_BLOCK_MS;
+      this.global.run(`INSERT INTO subscription_blocks VALUES (?,?,?)
+        ON CONFLICT(usage_key) DO UPDATE SET until_ms = MAX(until_ms, excluded.until_ms), recorded_ms = excluded.recorded_ms`,
+        [providerId, snap.blockedUntil, this.now()]);
       // A rejection that names no reset time still ends: its reading expires with the block.
       resetsAt ??= Math.floor(snap.blockedUntil / 1000);
     }
@@ -97,8 +100,10 @@ export class UsageTracker {
    * so does the block. (Warnings stay: they are readings, not limits.) Without this a rejection the
    * provider never re-reports would outlive its window.
    */
-  recordSuccess(providerId: string): void {
+  recordSuccess(providerId: string, startedAt = this.now()): void {
     const s = this.snapshot(providerId);
+    this.global.run('DELETE FROM subscription_blocks WHERE usage_key = ? AND recorded_ms <= ?', [providerId, startedAt]);
+    if (this.global.get('SELECT 1 FROM subscription_blocks WHERE usage_key = ? AND until_ms > ?', [providerId, this.now()])) return;
     let changed = s.blocked;
     for (const [key, w] of Object.entries(s.windows)) {
       if (w.status !== 'rejected') continue;
@@ -138,6 +143,8 @@ export class UsageTracker {
     }
     // A reading describes its window only until the window resets, and a block ends at its reset time.
     const now = this.now();
+    const persisted = this.global.get<{ until_ms: number }>('SELECT until_ms FROM subscription_blocks WHERE usage_key = ? AND until_ms > ?', [providerId, now]);
+    if (persisted) { s.blocked = true; s.blockedUntil = persisted.until_ms; }
     for (const [key, w] of Object.entries(s.windows)) {
       if (windowExpired(w, now)) delete s.windows[key];
     }
@@ -155,6 +162,7 @@ export class UsageTracker {
   }
 
   clearBlock(providerId: string): void {
+    this.global.run('DELETE FROM subscription_blocks WHERE usage_key = ?', [providerId]);
     const s = this.snapshot(providerId);
     s.blocked = false;
     s.blockedUntil = null;

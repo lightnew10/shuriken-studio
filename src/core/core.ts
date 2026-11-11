@@ -7,7 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { nowIso } from '@shared/ids';
 import { liveWindows } from '@shared/usage';
-import type { HealthCheckResult, PermissionMode, ProjectSummary } from '@shared/domain';
+import type { HealthCheckResult, PermissionMode, ProjectSummary, Task } from '@shared/domain';
 import { effectivePermissionMode } from './permissions/owner-gate';
 import { answerQuestion } from './orchestrator/autonomy';
 import type { RenderRequest } from '@shared/render';
@@ -27,9 +27,13 @@ import { GameAdoption } from './projects/adoption';
 import { DossierStore } from './projects/game-study';
 import { ProviderRegistry } from './providers/provider-registry';
 import { CollaborationService } from './collaboration/collaboration-service';
-import type { CollabRunSummary } from '@shared/collaboration';
+import { InferencePool } from './collaboration/inference-pool';
+import type { CollabRunSummary, CollabTaskSummary } from '@shared/collaboration';
 import { ClaudeProvider, DEFAULT_CLAUDE_SETTINGS } from './providers/claude/claude-provider';
 import { CodexProvider } from './providers/codex/codex-provider';
+import { FreeApiAccounts } from './providers/free-api';
+import { ModelQuotas } from './providers/model-quotas';
+import { RunRouting } from './providers/run-routing';
 import type { IAgentProvider, ProbeContext } from './providers/types';
 import { ShurikenMcpServer } from './mcp/mcp-server';
 import { createMcpContent } from './mcp/mcp-content';
@@ -125,6 +129,7 @@ export interface CoreOptions {
   luau?: LuauToolchain;
   /** Secret lookup (the app asks the Electron main process, which decrypts with DPAPI). */
   secrets?: SecretProvider;
+  saveCoopSecret?: (key: string, value: string | null) => Promise<boolean>;
   /** Safe mode: open projects without starting the orchestrator (inspection, screenshots). */
   safeMode?: boolean;
   /**
@@ -172,6 +177,7 @@ export class Core {
   readonly projects: ProjectService;
   readonly providers: ProviderRegistry;
   readonly collaboration: CollaborationService;
+  readonly coop: InferencePool;
   readonly usage: UsageTracker;
   readonly accounts: AccountService;
   readonly prefs: AppPrefsService;
@@ -221,6 +227,8 @@ export class Core {
   readonly cloud: OpenCloudLuau;
   /** Secrets as the main process gives them (the default key, a project's own key by its name). */
   private readonly secrets: SecretProvider;
+  readonly modelQuotas: ModelQuotas;
+  readonly freeApi: FreeApiAccounts;
   readonly approvals = new Set<string>();
   project: ProjectContext | null = null;
   private healthTimer: NodeJS.Timeout | null = null;
@@ -239,6 +247,15 @@ export class Core {
     this.projects = new ProjectService(this.global, this.bus, this.knowledge);
     this.providers = new ProviderRegistry(this.global);
     this.collaboration = new CollaborationService({
+      secure: true,
+      loadPairing: (key) => this.secrets(key),
+      savePairing: opts.saveCoopSecret,
+      onSecurePayload: (payload) => this.coop.receive(payload),
+      onSecureState: (ready) => this.coop.onConnection(ready),
+      onHostState: (projectId, enabled) => {
+        if (this.project?.summary.id === projectId) this.project.updateSettings({ coopEnabled: enabled });
+        this.orchestrator?.kick();
+      },
       bus: this.bus,
       getRelay: () => this.setting('collaboration.relay'),
       saveRelay: (url) => this.setSetting('collaboration.relay', url),
@@ -248,11 +265,9 @@ export class Core {
         name: this.project?.summary.name ?? 'No project open',
         projectId: this.project?.summary.id ?? null,
         taskCount: this.project?.tasks.list({}).length ?? 0,
+        waiting: this.orchestrator?.state().waiting?.slice(0, 300),
       }),
-      localTasks: () => (this.project?.tasks.list({}) ?? []).map((task) => ({
-        id: task.id, title: task.title.slice(0, 250), role: task.role,
-        status: task.status, updatedAt: task.updatedAt,
-      })),
+      localTasks: () => (this.project?.tasks.list({}) ?? []).slice(-200).map((task) => this.sharedTask(task)),
       localDirector: () => this.project ? (this.director.chat()?.list(60) ?? [])
         .filter((msg) => msg.channel === 'director' && (msg.role === 'user' || msg.role === 'director' || msg.role === 'system'))
         .map((msg) => ({
@@ -262,34 +277,24 @@ export class Core {
             { sender: (msg.data?.collaboration as { sender: string }).sender } : {}),
         })) : [],
       localRuns: () => (this.project?.store.all<{
-        id: string; task_id: string | null; role: string;
+        id: string; task_id: string | null; role: string; provider_id: string; model: string | null;
         status: CollabRunSummary['status']; started_at: string; ended_at: string | null;
-      }>('SELECT id, task_id, role, status, started_at, ended_at FROM runs ORDER BY started_at DESC LIMIT 100') ?? [])
+      }>('SELECT id, task_id, role, provider_id, model, status, started_at, ended_at FROM runs ORDER BY started_at DESC LIMIT 100') ?? [])
         .map((run) => ({ id: run.id, taskId: run.task_id, role: run.role, status: run.status,
-          startedAt: run.started_at, endedAt: run.ended_at })),
-      getAllowGuestRequests: () => this.setting('collaboration.allowGuestRequests') === '1',
-      saveAllowGuestRequests: (enabled) => this.setSetting('collaboration.allowGuestRequests', enabled ? '1' : '0'),
-      onGuestRequest: (sender, id, text) => {
-        if (!this.project) throw new Error('The host must open a project before receiving collaborator requests.');
-        if (this.opts.safeMode) throw new Error('Guest work is disabled in safe mode.');
-        // Audit the source before dispatch; collaborator requests may consume host AI quota.
-        this.project.audit.event({
-          kind: 'collaboration.request', title: 'Guest request received from ' + sender.name.slice(0, 48),
-          detail: { requestId: id, peerId: sender.id },
-        });
-        // A trusted collaborator enters the same local Director pipeline as the host.
-        // Existing host project permission policies still govern local tool execution.
-        this.director.send(text, { sender: sender.name, peerId: sender.id, requestId: id });
-      },
+          startedAt: run.started_at, endedAt: run.ended_at, provider: run.provider_id, ...(run.model ? { model: run.model } : {}) })),
+      getAllowGuestRequests: () => this.project?.settings().coopGuestRequests === true,
+      saveAllowGuestRequests: (enabled) => this.project?.updateSettings({ coopGuestRequests: enabled }),
+      onGuestRequest: (sender, id, text) => { this.submitCoopTask(id, text, sender.name); },
     });
     this.bus.on('project.changed', () => {
+      const bound = this.collaboration.boundProject();
+      if (bound && bound !== this.project?.summary.id) this.collaboration.leave(true);
       this.collaboration.shareProject();
       this.collaboration.shareSnapshot();
     });
-    this.bus.on('task.updated', (task) => this.collaboration.shareTask({
-      id: task.id, title: task.title.slice(0, 250), role: task.role,
-      status: task.status, updatedAt: task.updatedAt,
-    }));
+    this.bus.on('task.updated', (task) => {
+      if (this.collaboration.secureRole() === 'host') this.collaboration.shareTask(this.sharedTask(task));
+    });
     this.bus.on('task.deleted', ({ id }) => this.collaboration.removeTask(id));
     this.bus.on('chat.message', (msg) => {
       if (msg.projectId !== this.project?.summary.id || msg.channel !== 'director') return;
@@ -303,7 +308,7 @@ export class Core {
       if (!this.project) return;
       this.collaboration.shareRun({
         id: run.id, taskId: run.taskId, role: run.role, status: run.status,
-        startedAt: run.startedAt, endedAt: run.endedAt,
+        startedAt: run.startedAt, endedAt: run.endedAt, provider: run.providerId, ...(run.model ? { model: run.model } : {}),
       });
     });
     this.bus.on('chat.typing', (state) => {
@@ -429,6 +434,12 @@ export class Core {
     this.sync = new CodeSync(this.studio, this.lease);
     // The open project's own Open Cloud key wins over the default one (roblox/project-keys.ts).
     this.secrets = opts.secrets ?? (async () => null);
+    this.modelQuotas = new ModelQuotas(this.global);
+    this.freeApi = new FreeApiAccounts(this.global, this.secrets);
+    this.coop = new InferencePool(this.global, this.freeApi, this.collaboration, () => {
+      this.bus.emit('collaboration.changed', {});
+      this.orchestrator?.kick();
+    }, () => this.project?.settings().coopPriority ?? []);
     const keyed = projectSecrets(this.secrets, () => this.project?.summary.id ?? null);
     this.cloud = new OpenCloudLuau(keyed, this.logger.scope('open-cloud'));
     this.assetUploads = new OpenCloudAssets(keyed);
@@ -647,6 +658,15 @@ export class Core {
     }, 10_000);
     this.runner = new AgentRunner({
       providers: this.providers,
+      quotas: this.modelQuotas,
+      tools: this.tools,
+      routing: new RunRouting(this.providers, this.modelQuotas, this.accounts, this.usage, this.freeApi,
+        () => this.setting('provider.freeFallback') === 'true',
+        (id, fallback) => {
+          const health = this.health.get(`provider:${id}`);
+          return health?.status === 'unavailable' || health?.status === 'needs_configuration' || (fallback && health?.status !== 'healthy')
+            ? `${id}: ${health?.summary ?? 'availability has not been verified'}` : null;
+        }, (project, tier, needs) => this.coop.pick(project.summary.id, () => project.settings().freeApiProviders ?? [], project.settings().coopPriority ?? [], tier, needs)),
       mcp: this.mcp,
       compiler: this.compiler,
       bus: this.bus,
@@ -722,7 +742,13 @@ export class Core {
       // chat helpers or a copilot: a project that just opened runs its suggestion writer.
       working: () => this.runner.teamRuns().length > 0,
     });
+    let lastSharedWaiting: string | null = null;
     this.bus.on('orchestrator.state', (st) => {
+      if (this.collaboration.secureRole() === 'host' && st.waiting !== lastSharedWaiting) {
+        lastSharedWaiting = st.waiting;
+        this.collaboration.shareProject();
+        this.bus.emit('collaboration.changed', {});
+      }
       const ctx = this.studioOnWake;
       if (!ctx || st.paused || this.project !== ctx) return;
       this.studioOnWake = null;
@@ -1428,6 +1454,39 @@ export class Core {
     return this.project;
   }
 
+  private sharedTask(task: Task): CollabTaskSummary {
+    const evidence = this.project?.store.all<{ title: string; passed: number | null }>(
+      'SELECT title, passed FROM task_evidence WHERE task_id=? ORDER BY created_at DESC LIMIT 3', [task.id],
+    ).map((item) => ({ title: item.title.slice(0, 150), passed: item.passed === null ? null : item.passed === 1 }));
+    return {
+      id: task.id, title: task.title.slice(0, 250), role: task.role, status: task.status, updatedAt: task.updatedAt,
+      ...(task.result ? { result: task.result.slice(0, 500) } : {}),
+      ...(task.failureSummary ? { blocker: task.failureSummary.slice(0, 400) } : {}),
+      ...(evidence?.length ? { evidence } : {}),
+    };
+  }
+
+  submitCoopTask(id: string, input: string, actor: string): string {
+    const project = this.requireProject();
+    if (this.opts.safeMode || this.collaboration.secureRole() !== 'host' || this.collaboration.boundProject() !== project.summary.id)
+      throw new Error('This project is not the active collaboration host');
+    if (!/^[a-f0-9-]{36}$/i.test(id) || typeof input !== 'string' || !input.trim() || input.length > 2000) throw new Error('Invalid shared task');
+    const taskId = project.store.tx(() => {
+      const prior = project.store.get<{ task_id: string }>('SELECT task_id FROM coop_requests WHERE id=?', [id]);
+      if (prior) return prior.task_id;
+      const task = project.tasks.create({
+        kind: 'implement', title: input.trim().slice(0, 120), objective: input.trim(), role: 'roblox-engineer',
+        createdBy: 'user', status: 'ready', acceptanceCriteria: ['The shared request is implemented and verified on the host project.'],
+      });
+      project.store.run('INSERT INTO coop_requests VALUES (?,?,?,?)', [id, actor.slice(0, 48), task.id, new Date().toISOString()]);
+      project.audit.event({ kind: 'collaboration.request', title: 'Shared task from ' + actor.slice(0, 48), taskId: task.id, detail: { requestId: id } });
+      this.director.chat()?.add({ role: 'user', kind: 'text', text: input.trim(), data: { collaboration: { sender: actor.slice(0, 48), requestId: id } } });
+      return task.id;
+    });
+    this.orchestrator.kick();
+    return taskId;
+  }
+
   /** Invoke a capability-layer tool on behalf of the user (UI) or system. */
   invokeTool(name: string, args: unknown, kind: CallerContext['kind'] = 'ui') {
     return this.tools.invoke(name, args, { kind, runId: null, taskId: null, role: kind === 'ui' ? 'user' : 'system', providerId: null, allowedTools: null });
@@ -1804,7 +1863,8 @@ export class Core {
   }
 
   async shutdown(): Promise<void> {
-    this.collaboration.leave();
+    this.collaboration.leave(true);
+    this.coop.dispose();
     if (this.opts.forgeGpu) setForgeBatch(null);
     if (this.healthTimer) clearInterval(this.healthTimer);
     await this.studioLink?.stop().catch(() => {});

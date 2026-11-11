@@ -46,11 +46,11 @@ describe('store + migrations', () => {
   it('applies migrations once and is idempotent', () => {
     const dir = mkdtempSync(join(tmpdir(), 'shuriken-db-'));
     const path = join(dir, 'g.db');
-    const s1 = new Store(path, GLOBAL_MIGRATIONS);
+    const s1 = new Store(path, GLOBAL_MIGRATIONS.slice(0, 1));
     expect(s1.schemaVersion()).toBe(1);
     s1.close();
     const s2 = new Store(path, GLOBAL_MIGRATIONS);
-    expect(s2.schemaVersion()).toBe(1);
+    expect(s2.schemaVersion()).toBe(GLOBAL_MIGRATIONS.at(-1)?.version);
     s2.close();
   });
 

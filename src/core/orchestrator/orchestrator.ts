@@ -341,6 +341,8 @@ export class Orchestrator {
 
   /** Whether any account could start a run for this role now (a look; nothing is switched). */
   private roomFor(role: string): boolean {
+    const available = this.project ? this.deps.runner.availability?.(this.project, roleFor(role)) : undefined;
+    if (available) return available.ok;
     const provider = this.deps.providers.forRole(roleFor(role).id);
     return this.deps.accounts ? this.deps.accounts.anyCanStart(provider.id, this.deps.usage) : this.deps.usage.canStartRun(provider.id).ok;
   }
@@ -843,8 +845,13 @@ export class Orchestrator {
         if (mine.files.size && [...this.inflight.keys()].some((id) => sharedFiles(mine, claimsOf(p.tasks.get(id)?.files ?? [], isDir)).length > 0)) continue;
         const needsStudio = studioBound(task);
         if (needsStudio && inStudio >= studioLimit(load.studioCap) && !this.runNowQueue.has(task.id)) continue;
-        const provider = this.deps.providers.forRole(roleFor(task.role).id);
-        const pick = this.deps.accounts
+        const role = p.tasks.resumeRun(task.id) ? ROLES.critic! : roleFor(task.role);
+        const route = this.deps.runner.availability?.(p, role, task.id);
+        const provider = route?.ok ? route.provider : this.deps.providers.forRole(role.id);
+        const pick = route ? (route.ok
+          ? { ok: true, account: route.account, switchedFrom: undefined, resumeAt: null, reason: route.reason }
+          : { ...route, account: null, switchedFrom: undefined })
+          : this.deps.accounts
           ? this.deps.accounts.pick(provider.id, this.deps.usage)
           : { ok: this.deps.usage.canStartRun(provider.id).ok, reason: this.deps.usage.canStartRun(provider.id).reason, switchedFrom: undefined, account: null, resumeAt: null };
         if (pick.switchedFrom && pick.account) {
@@ -852,7 +859,7 @@ export class Orchestrator {
         }
         if (!pick.ok) {
           this.lastDecision = pick.reason ?? 'Provider unavailable';
-          this.waiting = pick.reason ?? 'Waiting for a usage limit to reset';
+          this.waiting = (pick.reason ?? 'Waiting for a usage limit to reset') + (route && pick.resumeAt ? ` · next attempt ${new Date(pick.resumeAt).toLocaleString()}` : '');
           const notice = `${pick.resumeAt ?? 'none'}`;
           if (this.lastLimitNotice !== notice) {
             this.lastLimitNotice = notice;
@@ -863,6 +870,7 @@ export class Orchestrator {
             this.pause();
             p.audit.event({ kind: 'limit.paused', severity: 'warning', title: `${PAUSED_FOR_LIMIT}: ${pick.reason ?? 'usage limit reached'}. ${RESUME_IS_YOURS}` });
           }
+          if (route && !this.paused) continue;
           break;
         }
         if (Date.now() < this.envBlockedUntil) {

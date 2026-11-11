@@ -79,6 +79,13 @@ export interface SubagentSpec {
 }
 
 export interface AgentRunRequest {
+  /** Mark the reservation as consumed when a provider starts sending the model request. */
+  onDispatch?: () => void;
+  apiAllowed?: () => boolean;
+  localTools?: {
+    definitions: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+    invoke(name: string, input: unknown, signal: AbortSignal): Promise<{ text: string; error: boolean; images?: Array<{ data: string; mimeType: string }> }>;
+  };
   /** Persisted compatibility boundary, never OAuth credentials. */
   sessionMetadata?: ProviderSessionMetadata | null;
   maxDurationMs?: number;

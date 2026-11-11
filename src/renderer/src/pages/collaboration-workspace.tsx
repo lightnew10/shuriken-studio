@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, CircleDot, MessageSquare, Settings2, ShieldCheck, Users, Workflow } from 'lucide-react';
-import type { CollabChatEntry, CollabDirectorSummary, CollabPendingRequest, CollabPeer, CollabRunActivity, CollabRunSummary, CollabTaskSummary } from '@shared/collaboration';
+import type { CollabChatEntry, CollabDirectorSummary, CollabPendingRequest, CollabPeer, CollabProjectSummary, CollabRunActivity, CollabRunSummary, CollabTaskSummary } from '@shared/collaboration';
 import { TopBar } from '../components/topbar';
 import { Button, cx } from '../components/ui';
 import { navigate } from '../lib/nav';
@@ -15,7 +15,7 @@ interface Session {
   hostOnline: boolean;
   guestRequestsEnabled: boolean;
   messages: CollabChatEntry[];
-  remoteProject: { name: string; projectId: string | null; taskCount: number } | null;
+  remoteProject: CollabProjectSummary | null;
   remoteDirector: CollabDirectorSummary[];
   remoteTasks: CollabTaskSummary[];
   remoteRuns: CollabRunSummary[];
@@ -40,6 +40,7 @@ export function CollaborationWorkspacePage() {
   const scroll = useRef<HTMLDivElement>(null);
   const data = session.data;
   const online = data?.connection === 'connected' && (data.role === 'host' || data.hostOnline);
+  const canSubmit = online && (isHost || data?.guestRequestsEnabled);
   const director = isHost
     ? (hostHistory.data ?? []).filter((m) => m.channel === 'director' && (m.role === 'director' || m.role === 'system' || m.role === 'user'))
       .map((m) => ({ id: m.id, role: m.role as CollabDirectorSummary['role'], kind: m.kind,
@@ -111,11 +112,11 @@ export function CollaborationWorkspacePage() {
               ))}
               {!isHost && data.directorTyping && <div className="text-[11px] text-accent2">Director is responding…</div>}
             </div>
-            {!isHost && (
+            {(
               <div className="shrink-0 border-t border-line px-3 py-3">
                 <div className="mb-2 flex items-center justify-between text-[11px] text-faint">
                   <span>Requests execute on the host PC</span>
-                  {!data.guestRequestsEnabled && <span className="text-warn">Waiting for host permission</span>}
+                  {!isHost && !data.guestRequestsEnabled && <span className="text-warn">Waiting for host permission</span>}
                 </div>
                 <div className="flex items-end gap-2">
                   <textarea
@@ -124,19 +125,19 @@ export function CollaborationWorkspacePage() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        if (online && data.guestRequestsEnabled && prompt.trim() && !busy)
-                          void submit('collaboration.requestDirector', prompt, () => setPrompt(''));
+                        if (canSubmit && prompt.trim() && !busy)
+                          void submit('collaboration.submitTask', prompt, () => setPrompt(''));
                       }
                     }}
-                    disabled={!online || !data.guestRequestsEnabled || busy}
-                    placeholder={data.guestRequestsEnabled ? 'Ask the Director to create or change something in Roblox…' : 'Host has not enabled collaborator requests'}
+                    disabled={!canSubmit || busy}
+                    placeholder={canSubmit ? 'Describe a change to make in the shared project…' : 'Waiting for host admission'}
                     className="no-drag min-h-12 min-w-0 flex-1 resize-none rounded-lg border border-line2 bg-surface2 px-3 py-2.5 text-[12.5px] text-text outline-none placeholder:text-faint focus:border-accent/45 disabled:opacity-50"
                   />
                   <button
                     className="no-drag flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-on-accent disabled:opacity-40"
-                    title="Send to host Director"
-                    disabled={!online || !data.guestRequestsEnabled || !prompt.trim() || busy}
-                    onClick={() => void submit('collaboration.requestDirector', prompt, () => setPrompt(''))}
+                    title="Submit shared task"
+                    disabled={!canSubmit || !prompt.trim() || busy}
+                    onClick={() => void submit('collaboration.submitTask', prompt, () => setPrompt(''))}
                   ><ArrowUp size={16} /></button>
                 </div>
                 {data.requests.slice(-3).reverse().map((req) => (
@@ -166,11 +167,19 @@ export function CollaborationWorkspacePage() {
             </section>
             <section className="rounded-xl border border-line bg-surface2/30 px-3.5 py-3">
               <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-text"><Workflow size={14} className="text-accent2" /> Live tasks</div>
+              {data.remoteProject?.waiting && <p className="mb-2 text-[11px] text-warn">{data.remoteProject.waiting}</p>}
               <div className="max-h-44 space-y-1.5 overflow-y-auto">
                 {(data.remoteTasks ?? []).slice(-12).reverse().map((task) => (
-                  <div key={task.id} className="flex items-center justify-between gap-2 text-[11px]">
+                  <div key={task.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-[11px]">
                     <span className="min-w-0 truncate text-dim" title={task.title}>{task.title}</span>
                     <span className="shrink-0 text-accent2">{task.status}</span>
+                    {task.result && <p className="col-span-2 whitespace-pre-wrap break-words text-faint">{task.result}</p>}
+                    {task.blocker && <p className="col-span-2 whitespace-pre-wrap break-words text-warn">{task.blocker}</p>}
+                    {task.evidence?.map((item, index) => (
+                      <p key={index} className="col-span-2 break-words text-faint">
+                        {item.passed === true ? 'Passed' : item.passed === false ? 'Failed' : 'Evidence'} · {item.title}
+                      </p>
+                    ))}
                   </div>
                 ))}
                 {!data.remoteTasks?.length && <p className="text-[11px] text-faint">Task state appears here during a shared build.</p>}
@@ -181,7 +190,9 @@ export function CollaborationWorkspacePage() {
               <div className="max-h-32 space-y-1.5 overflow-y-auto">
                 {(data.remoteRuns ?? []).slice(-10).reverse().map((run) => (
                   <div key={run.id} className="flex items-center justify-between gap-2 text-[11px]">
-                    <span className="min-w-0 truncate text-dim">{run.role}</span>
+                    <span className="min-w-0 truncate text-dim" title={[run.role, run.provider, run.model].filter(Boolean).join(' · ')}>
+                      {[run.role, run.provider, run.model].filter(Boolean).join(' · ')}
+                    </span>
                     <span className={run.status === 'failed' ? 'text-bad' : run.status === 'completed' ? 'text-ok' : 'text-faint'}>
                       {run.status === 'running' ? data.remoteActivity.find((a) => a.runId === run.id)?.kind ?? 'running' : run.status}
                     </span>
@@ -197,6 +208,7 @@ export function CollaborationWorkspacePage() {
                   <div key={m.id} className="text-[11.5px]">
                     <span className="mr-2 font-semibold text-accent2">{m.sender}</span>
                     <span className="break-words text-dim">{m.text}</span>
+                    {canSubmit && /^\[(Claude|Codex) contribution\] /.test(m.text) && <Button size="sm" disabled={busy} onClick={() => setPrompt(m.text)}>Use as task brief</Button>}
                   </div>
                 ))}
                 {!data.messages.length && <p className="text-[11px] text-faint">Discuss with the participants.</p>}

@@ -1,18 +1,21 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { EventBus } from '../events';
+import { makeGreeting, pairSecret, SecureChannel, verifyGreeting, type PairGreeting } from './secure-channel';
 import {
-  COLLAB_MAX_CHAT_HISTORY, COLLAB_RECONNECT_MS, COLLAB_VERSION,
+  COLLAB_MAX_CHAT_HISTORY, COLLAB_RECONNECT_MS, COLLAB_VERSION, COOP_INVITE_MS,
   collabInvitation, parseCollabInvitation, parseCollabPayload,
   truncateCollabHistory, validChatText, validCollabName, validRelayUrl,
   type CollabChatEntry, type CollabConnection, type CollabPayload, type CollabPeer,
-  type CollabRole, type CollabServerFrame, type CollabClientFrame,
-  type CollabTaskSummary, type CollabDirectorSummary, type CollabHeaderStatus,
+  type CollabRole, type CollabServerFrame, type CollabClientFrame, type CoopClientFrame, type CoopServerFrame,
+  type CollabTaskSummary, type CollabDirectorSummary, type CollabHeaderStatus, type CollabProjectSummary,
   type CollabRequestReceipt, type CollabPendingRequest, type CollabRunSummary, type CollabRunActivity,
 } from '@shared/collaboration';
 
 type Session = {
   relay: string; room: string; name: string; role: CollabRole;
   secret: string; joinSecret?: string; invitation: string | null;
+  pairKey?: string; expires?: number; identity?: string; resume?: string; used?: boolean;
+  projectId?: string;
 };
 export interface CollaborationStatus {
   connection: CollabConnection;
@@ -23,7 +26,7 @@ export interface CollaborationStatus {
   peers: CollabPeer[];
   selfId: string | null;
   messages: CollabChatEntry[];
-  remoteProject: { name: string; projectId: string | null; taskCount: number } | null;
+  remoteProject: CollabProjectSummary | null;
   remoteTasks: CollabTaskSummary[];
   remoteDirector: CollabDirectorSummary[];
   remoteRuns: CollabRunSummary[];
@@ -35,7 +38,9 @@ export interface CollaborationStatus {
   reconnectSeconds: number | null;
   error: string | null;
   /** Remote code execution and cross-user subscription pooling are not enabled in C1. */
-  remoteAgentsEnabled: false;
+  remoteAgentsEnabled: boolean;
+  pendingAdmission: string | null;
+  inviteExpires: number | null;
 }
 export interface CollaborationDeps {
   bus: EventBus;
@@ -43,7 +48,7 @@ export interface CollaborationDeps {
   saveRelay: (relay: string) => void;
   getName: () => string | null;
   saveName: (name: string) => void;
-  localProject: () => { name: string; projectId: string | null; taskCount: number };
+  localProject: () => CollabProjectSummary;
   localTasks: () => CollabTaskSummary[];
   localDirector: () => CollabDirectorSummary[];
   localRuns: () => CollabRunSummary[];
@@ -51,11 +56,17 @@ export interface CollaborationDeps {
   saveAllowGuestRequests: (enabled: boolean) => void;
   /** Invoked exclusively in the host core after relay-authenticated requests pass admission checks. */
   onGuestRequest: (sender: CollabPeer, id: string, text: string) => void;
+  secure?: boolean;
+  onSecurePayload?: (payload: unknown) => void;
+  onSecureState?: (ready: boolean) => void;
+  onHostState?: (projectId: string, enabled: boolean) => void;
+  loadPairing?: (slot: string) => Promise<string | null>;
+  savePairing?: (slot: string, value: string | null) => Promise<boolean>;
 }
 
 /**
- * C1 session client. Runs only in the core (Node), never in the renderer.
- * Stores no remote OAuth/auth profiles. Temporary host and guest secrets exist only in memory.
+ * Session client in the Node core. The Electron vault can retain pairing state across restarts.
+ * Provider credentials are outside the collaboration protocol.
  */
 export class CollaborationService {
   private session: Session | null = null;
@@ -81,8 +92,39 @@ export class CollaborationService {
   private opening: { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> } | null = null;
   private stopped = true;
   private retry = 0;
+  private channel: SecureChannel | null = null;
+  private remote: CollabPeer | null = null;
+  private candidate: { peer: CollabPeer; greeting: PairGreeting } | null = null;
+  private challenge: string | null = null;
 
   constructor(private readonly deps: CollaborationDeps) {}
+
+  private pairingSlot(role: CollabRole, projectId?: string): string {
+    return role === 'host' ? `coop-session:host:${projectId ?? this.deps.localProject().projectId ?? ''}` : 'coop-session:guest';
+  }
+
+  private async persist(): Promise<void> {
+    const session = this.session;
+    if (session?.pairKey) await this.deps.savePairing?.(this.pairingSlot(session.role, session.projectId), JSON.stringify({ session, requests: this.requests }));
+  }
+
+  async restore(role: CollabRole): Promise<CollaborationStatus> {
+    this.requireInactive();
+    if (role !== 'host' && role !== 'guest') throw new Error('Invalid collaboration role');
+    const raw = await this.deps.loadPairing?.(this.pairingSlot(role));
+    if (!raw) throw new Error('No saved collaboration session for this role');
+    const saved = JSON.parse(raw) as { session: Session; requests: CollabPendingRequest[] };
+    const session = saved.session;
+    if (session.role !== role || !/^[a-f0-9]{64}$/.test(session.pairKey ?? '') ||
+        (role === 'host' && session.projectId !== this.deps.localProject().projectId)) throw new Error('Saved pairing does not match this project');
+    validRelayUrl(session.relay);
+    this.session = session;
+    this.startState();
+    this.requests = saved.requests.slice(-120);
+    await this.connect();
+    if (role === 'host') this.deps.onHostState?.(session.projectId!, true);
+    return this.status();
+  }
 
   /** Called frequently by the global header, intentionally excludes messages, tasks and invite keys. */
   headerStatus(): CollabHeaderStatus {
@@ -100,19 +142,21 @@ export class CollaborationService {
       connection: this.state, role: this.session?.role ?? null,
       relay: this.deps.getRelay() ?? '',
       name: this.deps.getName() ?? '',
-      invitation: this.session?.role === 'host' ? this.session.invitation : null,
+      invitation: this.session?.role === 'host' && (!this.session.expires || Date.now() < this.session.expires) ? this.session.invitation : null,
       peers: [...this.peers], selfId: this.selfId, messages: [...this.chat],
-      remoteProject: this.remoteProject,
-      remoteTasks: [...this.remoteTasks],
+      remoteProject: this.session?.role === 'host' ? this.deps.localProject() : this.remoteProject,
+      remoteTasks: this.session?.role === 'host' ? this.deps.localTasks().slice(-200) : [...this.remoteTasks],
       remoteDirector: [...this.remoteDirector],
-      remoteRuns: [...this.remoteRuns],
+      remoteRuns: this.session?.role === 'host' ? this.deps.localRuns().slice(0, 100) : [...this.remoteRuns],
       remoteActivity: [...this.remoteActivity],
       directorTyping: this.directorTyping,
       requests: [...this.requests],
       guestRequestsEnabled: this.session?.role === 'host' ? this.deps.getAllowGuestRequests() : this.guestAccess,
       hostOnline: this.state === 'connected' && this.peers.some((peer) => peer.role === 'host'),
       reconnectSeconds: this.lostAt === null ? null : Math.max(0, Math.ceil((COLLAB_RECONNECT_MS - (Date.now() - this.lostAt)) / 1000)),
-      error: this.lastError, remoteAgentsEnabled: false,
+      error: this.lastError, remoteAgentsEnabled: !!this.channel,
+      pendingAdmission: this.candidate?.peer.name ?? null,
+      inviteExpires: this.session?.expires ?? null,
     };
   }
 
@@ -135,33 +179,52 @@ export class CollaborationService {
     const secret = randomBytes(32).toString('hex');
     const joinSecret = randomBytes(32).toString('hex');
     const room = createHash('sha256').update(secret).digest('hex').slice(0, 32);
+    const projectId = this.deps.localProject().projectId;
+    if (this.deps.secure && !projectId) throw new Error('Open the host project before inviting a collaborator');
+    const pairKey = this.deps.secure ? pairSecret() : undefined;
     this.session = { relay, room, secret, joinSecret, name, role: 'host',
-      invitation: collabInvitation(relay, room, joinSecret) };
+      invitation: collabInvitation(relay, room, joinSecret) + (pairKey ? '&pair=' + pairKey : ''),
+      ...(pairKey ? { pairKey, expires: Date.now() + COOP_INVITE_MS, projectId: projectId! } : {}) };
     this.startState();
     await this.connect();
+    if (pairKey) this.deps.onHostState?.(projectId!, true);
+    await this.persist();
     return this.status();
   }
 
   async join(invitation: string): Promise<CollaborationStatus> {
     this.requireInactive();
     const name = validCollabName(this.deps.getName() ?? '');
-    const { relay, room, inviteSecret } = parseCollabInvitation(invitation);
-    this.session = { relay, room, secret: inviteSecret, name, role: 'guest', invitation: null };
+    const url = new URL(invitation.trim());
+    const pairKey = new URLSearchParams(url.hash.slice(1)).get('pair');
+    if (this.deps.secure && !/^[a-f0-9]{64}$/.test(pairKey ?? '')) throw new Error('This invitation requires the encrypted collaboration protocol');
+    if (pairKey) url.hash = 'join=' + (new URLSearchParams(url.hash.slice(1)).get('join') ?? '');
+    const { relay, room, inviteSecret } = parseCollabInvitation(url.toString());
+    this.session = { relay, room, secret: inviteSecret, name, role: 'guest', invitation: null,
+      ...(pairKey ? { pairKey, identity: randomUUID(), resume: pairSecret() } : {}) };
     this.startState();
     await this.connect();
+    await this.persist();
     return this.status();
   }
 
   /** Explicit logout never grants 10 minutes of continued access. */
-  leave(): CollaborationStatus {
-    if (this.session?.role === 'host') this.deps.saveAllowGuestRequests(false);
+  leave(keepProjectMode = false): CollaborationStatus {
+    const session = this.session;
+    if (!keepProjectMode && session?.role === 'host' && this.channel) {
+      try { this.sendCoop({ kind: 'revoked' }); } catch { /* already offline */ }
+    }
+    if (!keepProjectMode && session?.role === 'host' && session.projectId) this.deps.onHostState?.(session.projectId, false);
+    if (!keepProjectMode && session?.pairKey) void this.deps.savePairing?.(this.pairingSlot(session.role, session.projectId), null).catch(() => {});
+    this.clearChannel();
+    if (!keepProjectMode && this.session?.role === 'host') this.deps.saveAllowGuestRequests(false);
     this.stopped = true;
     this.clearRetry();
     this.finishOpening(new Error('Session left by user'));
     const old = this.socket;
     this.socket = null;
     if (old?.readyState === WebSocket.OPEN) {
-      try { old.send(JSON.stringify({ v: COLLAB_VERSION, type: 'leave' })); } catch { /* disconnected */ }
+      try { if (!keepProjectMode) old.send(JSON.stringify({ v: session?.pairKey ? 2 : COLLAB_VERSION, type: 'leave' })); } catch { /* disconnected */ }
     }
     try { old?.close(1000, 'User left'); } catch { /* disconnected */ }
     this.session = null;
@@ -197,6 +260,100 @@ export class CollaborationService {
     return this.status();
   }
 
+  admit(): CollaborationStatus {
+    const session = this.session, candidate = this.candidate;
+    if (session?.role !== 'host' || !session.pairKey || !candidate || session.identity || Date.now() >= (session.expires ?? 0))
+      throw new Error('There is no valid collaboration request to admit');
+    this.acceptPair(candidate.peer, candidate.greeting);
+    this.deps.saveAllowGuestRequests(true);
+    this.shareProject();
+    return this.status();
+  }
+
+  secureRole(): CollabRole | null { return this.session?.pairKey ? this.session.role : null; }
+  roomId(): string | null { return this.session?.pairKey ? this.session.room : null; }
+  ready(): boolean { return !!this.channel && this.state === 'connected'; }
+  boundProject(): string | undefined { return this.session?.projectId; }
+
+  sendCoop(payload: unknown): void {
+    if (!this.channel || !this.remote) throw new Error('Your collaborator is offline');
+    this.sendSecure(this.remote.id, this.channel.seal({ kind: 'coop-data', payload }));
+  }
+
+  private clearChannel(): void {
+    const hadChannel = !!this.channel;
+    this.channel = null;
+    this.remote = null;
+    this.candidate = null;
+    this.challenge = null;
+    this.guestAccess = false;
+    if (hadChannel) this.deps.onSecureState?.(false);
+  }
+
+  private sendSecure(to: string, packet: string): void {
+    if (this.socket?.readyState !== WebSocket.OPEN) throw new Error('Collaboration connection is offline');
+    const frame: CoopClientFrame = { v: 2, type: 'secure', to, packet };
+    this.socket.send(JSON.stringify(frame));
+  }
+
+  private requestPair(): void {
+    const session = this.session, host = this.peers.find((peer) => peer.role === 'host');
+    if (session?.role !== 'guest' || !session.pairKey || !host || this.channel || this.challenge) return;
+    this.challenge = pairSecret();
+    this.sendSecure(host.id, JSON.stringify(makeGreeting(session.pairKey, session.room, session.identity!, this.challenge, undefined, session.name)));
+  }
+
+  private acceptPair(peer: CollabPeer, greeting: PairGreeting): void {
+    const session = this.session!;
+    const hostChallenge = pairSecret();
+    this.sendSecure(peer.id, JSON.stringify(makeGreeting(session.pairKey!, session.room, greeting.identity, greeting.challenge, hostChallenge, session.name)));
+    session.identity = greeting.identity;
+    session.invitation = null;
+    this.channel = new SecureChannel(session.pairKey!, session.room, greeting.challenge, hostChallenge, 'host');
+    this.remote = peer;
+    this.candidate = null;
+    void this.persist().catch(() => {});
+    this.deps.onSecureState?.(true);
+    this.changed();
+  }
+
+  private receiveSecure(from: CollabPeer, packet: string): void {
+    const session = this.session;
+    if (!session?.pairKey || from.role === session.role || !this.peers.some((peer) => peer.id === from.id && peer.role === from.role)) return;
+    if (packet.startsWith('{')) {
+      if (packet.length > 800) return;
+      const greeting = verifyGreeting(session.pairKey, session.room, JSON.parse(packet));
+      if (!greeting) return;
+      const peer = { ...from, name: validCollabName(greeting.name) };
+      if (session.role === 'host' && greeting.kind === 'join') {
+        if (this.channel) return;
+        if (session.identity === greeting.identity) this.acceptPair(peer, greeting);
+        else if (!session.identity && Date.now() < (session.expires ?? 0)) {
+          this.candidate = { peer, greeting };
+          this.changed();
+        }
+      } else if (session.role === 'guest' && greeting.kind === 'accept' && !this.channel &&
+          greeting.identity === session.identity && greeting.challenge === this.challenge) {
+        this.channel = new SecureChannel(session.pairKey, session.room, greeting.challenge, greeting.hostChallenge, 'guest');
+        this.remote = peer;
+        this.deps.onSecureState?.(true);
+        this.transmit({ kind: 'sync-request' });
+        this.retryRequests();
+        this.changed();
+      }
+      return;
+    }
+    if (!this.channel || this.remote?.id !== from.id) return;
+    const data = this.channel.open(packet);
+    if (data && typeof data === 'object' && (data as { kind?: string }).kind === 'coop-data') {
+      const payload = (data as { payload?: unknown }).payload;
+      if (session.role === 'guest' && (payload as { kind?: string } | null)?.kind === 'revoked') this.leave();
+      else this.deps.onSecurePayload?.(payload);
+      return;
+    }
+    this.handle({ v: 1, type: 'payload', from: { ...this.remote, id: from.role === 'guest' ? session.identity! : from.id }, data: data as CollabPayload });
+  }
+
   /** A guest asks the host Director to perform work. No remote file, terminal or MCP access. */
   requestDirector(input: string): CollabPendingRequest {
     if (this.session?.role !== 'guest' || this.state !== 'connected' || !this.peers.some((p) => p.role === 'host'))
@@ -207,6 +364,7 @@ export class CollaborationService {
     this.requests = [...this.requests, request].slice(-120);
     try { this.transmit({ kind: 'director-request', id: request.id, text }); }
     catch (e) { this.requests = this.requests.filter((r) => r.id !== request.id); throw e; }
+    void this.persist().catch(() => {});
     this.changed();
     return request;
   }
@@ -261,11 +419,11 @@ export class CollaborationService {
     const messages = this.deps.localDirector().slice(-60);
     const runs = this.deps.localRuns().slice(-100);
     this.transmit({ kind: 'task-batch', tasks: [], reset: true }, to);
-    for (let i = 0; i < tasks.length; i += 30)
-      this.transmit({ kind: 'task-batch', tasks: tasks.slice(i, i + 30) }, to);
+    for (let i = 0; i < tasks.length; i += 6)
+      this.transmit({ kind: 'task-batch', tasks: tasks.slice(i, i + 6) }, to);
     this.transmit({ kind: 'director-batch', messages: [], reset: true }, to);
-    for (let i = 0; i < messages.length; i += 12)
-      this.transmit({ kind: 'director-batch', messages: messages.slice(i, i + 12) }, to);
+    for (let i = 0; i < messages.length; i += 3)
+      this.transmit({ kind: 'director-batch', messages: messages.slice(i, i + 3) }, to);
     this.transmit({ kind: 'run-batch', runs: [], reset: true }, to);
     for (let i = 0; i < runs.length; i += 30)
       this.transmit({ kind: 'run-batch', runs: runs.slice(i, i + 30) }, to);
@@ -282,6 +440,7 @@ export class CollaborationService {
     if (this.session) throw new Error('Leave your current collaboration session first.');
   }
   private startState(): void {
+    this.clearChannel();
     this.stopped = false;
     this.lastError = null;
     this.state = 'connecting';
@@ -332,7 +491,10 @@ export class CollaborationService {
 
     socket.addEventListener('open', () => {
       if (this.stopped || this.socket !== socket) return;
-      const hello: CollabClientFrame & { joinSecret?: string } = {
+      const hello: (CollabClientFrame & { joinSecret?: string }) | CoopClientFrame = session.pairKey ? {
+        v: 2, type: 'hello', role: session.role, name: session.name, secret: session.used ? session.resume! : session.secret,
+        ...(session.role === 'host' ? { joinSecret: session.joinSecret } : { resume: session.resume }),
+      } : {
         v: 1, type: 'hello', role: session.role, name: session.name, secret: session.secret,
         ...(session.role === 'host' ? { joinSecret: session.joinSecret } : {}),
       };
@@ -340,10 +502,20 @@ export class CollaborationService {
     });
     socket.addEventListener('message', (event: MessageEvent) => {
       if (this.socket !== socket || this.stopped || typeof event.data !== 'string') return;
-      let message: CollabServerFrame;
-      try { message = JSON.parse(event.data) as CollabServerFrame; } catch { return; }
-      if (message?.v !== COLLAB_VERSION) return;
-      this.handle(message);
+      try {
+        const message = JSON.parse(event.data) as CollabServerFrame | CoopServerFrame;
+        if (session.pairKey) {
+          if (message?.v !== 2) {
+            socket.close(1002, 'Relay does not support encrypted collaboration v2');
+            return;
+          }
+          if (message.type === 'secure') this.receiveSecure(message.from, message.packet);
+          else {
+            if (message.type === 'welcome' && session.role === 'guest') session.used = true;
+            this.handle({ ...message, v: 1 });
+          }
+        } else if (message?.v === COLLAB_VERSION) this.handle(message);
+      } catch { /* Invalid or replayed frames are ignored. */ }
     });
     socket.addEventListener('error', () => {
       if (this.socket !== socket || this.stopped) return;
@@ -353,6 +525,7 @@ export class CollaborationService {
     socket.addEventListener('close', (event: CloseEvent) => {
       if (this.socket !== socket || this.stopped) return;
       this.socket = null;
+      this.clearChannel();
       if (event.code === 1008 || event.code === 1002 || event.code === 4001) {
         this.lastError = 'Session refused or replaced by the relay: ' + (event.reason || event.code);
         this.stopped = true;
@@ -378,6 +551,7 @@ export class CollaborationService {
     if (this.stopped || !this.session) return;
     this.lastError = reason;
     this.peers = [];
+    this.clearChannel();
     this.selfId = null;
     if (this.lostAt === null) this.lostAt = Date.now();
     this.state = 'reconnecting';
@@ -402,6 +576,15 @@ export class CollaborationService {
   private transmit(data: CollabPayload, to?: string): void {
     if (this.socket?.readyState !== WebSocket.OPEN || this.state !== 'connected')
       throw new Error('Collaboration connection is offline.');
+    if (this.session?.pairKey) {
+      if (!this.channel || !this.remote) {
+        if (this.session.role === 'guest') throw new Error('Wait for the host to admit you');
+        return;
+      }
+      if (data.kind === 'chat') this.addMessage(data.message);
+      this.sendSecure(this.remote.id, this.channel.seal(data));
+      return;
+    }
     const frame: CollabClientFrame = { v: 1, type: 'payload', data, ...(to ? { to } : {}) };
     const encoded = JSON.stringify(frame);
     if (Buffer.byteLength(encoded, 'utf8') > 64 * 1024)
@@ -463,7 +646,9 @@ export class CollaborationService {
       this.lastError = null;
       this.finishOpening();
       this.changed();
-      if (this.session.role === 'guest') {
+      if (this.session.pairKey) {
+        if (this.session.role === 'guest') this.requestPair();
+      } else if (this.session.role === 'guest') {
         this.transmit({ kind: 'sync-request' });
         this.retryRequests();
       } else this.shareProject();
@@ -473,6 +658,13 @@ export class CollaborationService {
       if (!Array.isArray(frame.peers) || frame.peers.length > 16) return;
       const hadHost = this.peers.some((peer) => peer.role === 'host');
       this.peers = frame.peers;
+      if (this.session?.pairKey) {
+        if ((this.remote && !this.peers.some((peer) => peer.id === this.remote!.id)) || (this.candidate && !this.peers.some((peer) => peer.id === this.candidate!.peer.id))) this.clearChannel();
+        if (!this.peers.some((peer) => peer.role === 'host')) this.challenge = null;
+        this.requestPair();
+        this.changed();
+        return;
+      }
       this.changed();
       if (this.session?.role === 'guest' && this.state === 'connected' &&
           !hadHost && frame.peers.some((peer) => peer.role === 'host')) {
@@ -487,7 +679,7 @@ export class CollaborationService {
     if (!data) return;
     if (data.kind === 'chat') {
       // Relay overwrites sender fields; a stale or duplicated event is ignored.
-      this.addMessage(data.message);
+      this.addMessage(this.session?.pairKey ? { ...data.message, sender: frame.from.name, from: frame.from.id } : data.message);
     } else if (data.kind === 'project-status' && sourceHost && this.session?.role === 'guest') {
       this.remoteProject = data;
       this.guestAccess = data.guestRequestsEnabled === true;
@@ -495,8 +687,8 @@ export class CollaborationService {
     } else if (data.kind === 'sync-request' && this.session?.role === 'host' && frame.from?.role === 'guest') {
       // Send bounded batches; a single 400-message history frame would exceed relay limits.
       const history = this.chat.slice(-COLLAB_MAX_CHAT_HISTORY);
-      for (let offset = 0; offset < history.length; offset += 20)
-        this.transmit({ kind: 'history', messages: history.slice(offset, offset + 20) }, frame.from.id);
+      for (let offset = 0; offset < history.length; offset += 5)
+        this.transmit({ kind: 'history', messages: history.slice(offset, offset + 5) }, frame.from.id);
       this.shareProject();
       this.shareSnapshot(frame.from.id);
     } else if (data.kind === 'director-request' && this.session?.role === 'host' && frame.from?.role === 'guest') {
@@ -504,6 +696,7 @@ export class CollaborationService {
     } else if (data.kind === 'director-receipt' && sourceHost && this.session?.role === 'guest') {
       this.requests = this.requests.map((request) => request.id === data.receipt.id ?
         { ...request, status: data.receipt.status, ...(data.receipt.reason ? { reason: data.receipt.reason } : {}) } : request);
+      void this.persist().catch(() => {});
       this.changed();
     } else if (data.kind === 'director-typing' && sourceHost && this.session?.role === 'guest') {
       this.directorTyping = data.typing;

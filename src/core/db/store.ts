@@ -71,7 +71,8 @@ export class Store {
   tx<T>(fn: () => T): T {
     const depth = this.txDepth++;
     const sp = `sp${depth}`;
-    this.db.exec(depth === 0 ? 'BEGIN IMMEDIATE' : `SAVEPOINT ${sp}`);
+    try { this.db.exec(depth === 0 ? 'BEGIN IMMEDIATE' : `SAVEPOINT ${sp}`); }
+    catch (error) { this.txDepth--; throw error; }
     try {
       const out = fn();
       this.db.exec(depth === 0 ? 'COMMIT' : `RELEASE ${sp}`);
@@ -94,6 +95,8 @@ export class Store {
     for (const m of sorted) {
       if (applied.has(m.version)) continue;
       this.tx(() => {
+        // Another core may have applied it while this connection waited for the write lock.
+        if (this.get('SELECT 1 FROM schema_migrations WHERE version = ?', [m.version])) return;
         this.db.exec(m.sql);
         this.run('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)', [
           m.version,

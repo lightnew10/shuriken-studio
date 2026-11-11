@@ -6,6 +6,10 @@ import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { sandboxPlaceXml } from '../roblox/place-template';
 import { listWorldBuilders, rebuildWorld } from '../roblox/world-builder';
 import type { Core } from '../core';
+import { randomUUID } from 'node:crypto';
+import { EffectJournal } from '../collaboration/effect-journal';
+import { FREE_API_IDS, isFreeApi, type FreeApiId } from '../providers/free-api';
+import type { ModelTier } from '@shared/domain';
 import { PC_ACCOUNT_ID } from '../accounts/account-service';
 import { TestService } from '../verification/test-service';
 import { AssetService } from '../assets/asset-service';
@@ -454,15 +458,46 @@ export function createRouter(core: Core): Record<string, Handler> {
     },
 
     // ─── Terminal ───────────────────────────────────────────────────────────
-    // ─── Collaboration (C1: relay, presence and human chat only) ──────────────
+    // ─── Collaboration ──────────────────────────────────────────────────────
     'collaboration.status': () => core.collaboration.status(),
     'collaboration.header': () => core.collaboration.headerStatus(),
     'collaboration.configure': (input: { relay: string; name: string }) => core.collaboration.configure(input),
     'collaboration.host': () => core.collaboration.host(),
+    'collaboration.admit': () => core.collaboration.admit(),
+    'collaboration.restore': ({ role }: { role: 'host' | 'guest' }) => core.collaboration.restore(role),
     'collaboration.join': ({ invitation }: { invitation: string }) => core.collaboration.join(invitation),
     'collaboration.leave': () => core.collaboration.leave(),
     'collaboration.sendChat': ({ text }: { text: string }) => core.collaboration.sendChat(text),
     'collaboration.requestDirector': ({ text }: { text: string }) => core.collaboration.requestDirector(text),
+    'collaboration.submitTask': ({ text }: { text: string }) => core.collaboration.secureRole() === 'guest'
+      ? core.collaboration.requestDirector(text) : core.submitCoopTask(randomUUID(), text, core.collaboration.status().name),
+    'collaboration.shareContribution': ({ source, text }: { source: 'Claude' | 'Codex'; text: string }) => {
+      if (!['Claude', 'Codex'].includes(source) || typeof text !== 'string' || !text.trim() || text.trim().length > 1850) throw new Error('Enter a contribution of up to 1,850 characters');
+      return core.collaboration.sendChat(`[${source} contribution] ${text.trim()}`);
+    },
+    'collaboration.pool': () => ({
+      ...core.coop.status(),
+      effects: core.collaboration.secureRole() === 'host' ? new EffectJournal(p().store).outstanding() : [],
+      allowed: core.collaboration.secureRole() === 'host' ? p().settings().freeApiProviders ?? [] : [],
+    }),
+    'collaboration.shareKey': ({ keyId, maximum }: { keyId: string; maximum: number | null }) => core.coop.share(keyId, maximum),
+    'collaboration.moveKey': ({ id, direction }: { id: string; direction: number }) => {
+      if (core.collaboration.secureRole() !== 'host' || ![-1, 1].includes(direction)) throw new Error('Only the host can set shared key priority');
+      const order = core.coop.status().offers.map((offer) => offer.id);
+      const from = order.indexOf(id), to = from + direction;
+      if (from < 0 || to < 0 || to >= order.length) return;
+      [order[from], order[to]] = [order[to]!, order[from]!];
+      p().updateSettings({ coopPriority: order });
+      core.coop.refresh();
+    },
+    'collaboration.verifyEffect': ({ id, applied }: { id: string; applied: boolean }) => {
+      if (core.collaboration.secureRole() !== 'host' || !/^[a-f0-9]{64}$/.test(id) || typeof applied !== 'boolean') throw new Error('Only the host can verify a pending effect');
+      const row = p().store.get<{ run_id: string }>('SELECT run_id FROM coop_effects WHERE id=?', [id]);
+      if (!row || core.runner.activeRuns().includes(row.run_id)) throw new Error('Wait for the previous run to stop before verifying the operation');
+      new EffectJournal(p().store).verify(id, applied);
+      p().audit.event({ kind: 'collaboration.effect.verified', title: applied ? 'Host confirmed a shared effect' : 'Host confirmed a shared effect did not occur', detail: { id } });
+      core.coop.refresh();
+    },
     'collaboration.setGuestRequests': ({ enabled }: { enabled: boolean }) => core.collaboration.setGuestRequests(enabled),
         // ─── AI providers ─────────────────────────────────────────────────────────
     'providers.assignments': () => ({
@@ -476,19 +511,57 @@ export function createRouter(core: Core): Record<string, Handler> {
       providers: core.providers.list().map((provider) => ({ id: provider.id, name: provider.displayName })),
       roleOptions: Object.values(ROLES).map((role) => ({ id: role.id, name: role.name })),
     }),
-    'providers.setCodexFallback': async ({ enabled }: { enabled: boolean }) => {
-      if (enabled) {
-        const codex = core.providers.get('codex');
-        if (!codex || !(await codex.detect()).installed)
-          throw new Error('Codex CLI must be installed before enabling automatic fallback.');
-        if (!(await codex.auth()).authenticated)
-          throw new Error('Sign in to Codex with your ChatGPT subscription before enabling automatic fallback.');
-        const health = await core.health.run('provider:codex', false);
-        if (health.status !== 'healthy') throw new Error('Codex is not ready: ' + health.summary);
-      }
+    'providers.setCodexFallback': ({ enabled }: { enabled: boolean }) => {
+      if (typeof enabled !== 'boolean') throw new Error('Invalid fallback setting');
       core.providers.setCodexFallbackEnabled(enabled);
       core.orchestrator.kick();
       return { enabled: core.providers.codexFallbackEnabled() };
+    },
+    'providers.modelQuotas': () => (['claude', 'codex'] as const).flatMap((id) => {
+      const provider = core.providers.get(id);
+      if (!provider) return [];
+      const models = new Set<string>();
+      for (const tier of ['fast', 'balanced', 'deep'] as const) {
+        try { const model = provider.modelForTier(tier); if (model) models.add(model); } catch { /* Unconfigured tier */ }
+      }
+      return [...models].map((model) => core.modelQuotas.status(id, model));
+    }),
+    'providers.setModelQuota': ({ provider, model, maximum }: { provider: 'claude' | 'codex'; model: string; maximum: number | null }) => {
+      core.modelQuotas.set(provider, model, maximum);
+      core.orchestrator.kick();
+    },
+    'providers.free.status': () => ({ enabled: core.setting('provider.freeFallback') === 'true', keys: core.freeApi.list(), models: core.freeApi.selections() }),
+    'providers.free.setFallback': ({ enabled }: { enabled: boolean }) => {
+      if (typeof enabled !== 'boolean') throw new Error('Invalid fallback setting');
+      core.setSetting('provider.freeFallback', String(enabled));
+      core.orchestrator.kick();
+    },
+    'providers.free.setConsent': ({ provider, allowed }: { provider: FreeApiId; allowed: boolean }) => {
+      if (!isFreeApi(provider) || typeof allowed !== 'boolean') throw new Error('Invalid project consent');
+      const previous = p().settings().freeApiProviders ?? [];
+      p().updateSettings({ freeApiProviders: FREE_API_IDS.filter((id) => id === provider ? allowed : previous.includes(id)) });
+      core.orchestrator.kick();
+    },
+    'providers.free.add': async ({ id, provider, label, freeDeclared }: { id: string; provider: FreeApiId; label: string; freeDeclared: boolean }) => core.freeApi.add(id, provider, label, freeDeclared),
+    'providers.free.update': ({ id, patch }: { id: string; patch: Parameters<Core['freeApi']['update']>[1] }) => {
+      core.freeApi.update(id, patch);
+      core.coop.refresh();
+      core.orchestrator.kick();
+    },
+    'providers.free.remove': ({ id }: { id: string }) => {
+      core.freeApi.remove(id);
+      core.coop.refresh();
+      core.orchestrator.kick();
+    },
+    'providers.free.check': async ({ id }: { id: string }) => {
+      await core.freeApi.check(id);
+      core.coop.refresh();
+      core.orchestrator.kick();
+    },
+    'providers.free.setModel': ({ provider, tier, model }: { provider: FreeApiId; tier: ModelTier; model: string }) => {
+      core.freeApi.setModel(provider, tier, model);
+      core.coop.refresh();
+      core.orchestrator.kick();
     },
     'providers.setAssignments': async ({ default: selected, roles }: { default: string; roles: Record<string, string> }) => {
       const usesCodex = selected === 'codex' || Object.values(roles ?? {}).includes('codex');

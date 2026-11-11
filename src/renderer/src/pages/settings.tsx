@@ -15,6 +15,7 @@ import { useCurrentProject } from '../lib/project';
 import { calmDashboardNow, setCalmDashboard, themeColor, useCalmDashboard } from '../lib/appearance';
 import { ThemeSwitch } from '../components/theme-switch';
 import { CollaborationSettings } from './collaboration-settings';
+import { AiRoutingSettings } from './ai-routing-settings';
 import { StepSlider } from '../components/step-slider';
 import { ALWAYS_ASKS, PERMISSION_MODES, PROJECT_MODE_CHOICES, appMode, projectChoice, projectModeNote, projectSetting } from '../lib/permission-modes';
 
@@ -37,7 +38,6 @@ interface ProvidersInfo {
   providers: Array<{ id: string; name: string }>;
   roleOptions?: Array<{ id: string; name: string }>;
   codexFallbackEnabled: boolean;
-  codexFallbackActive: boolean;
 }
 
 type CodexTier = 'fast' | 'balanced' | 'deep';
@@ -425,23 +425,22 @@ function ProvidersSection() {
           </form>
         )}
       </Section>
-      <Section title="Automatic quota fallback" hint="When all connected Claude accounts are blocked by their quota, future Claude-assigned agent runs can use Codex. They return to Claude after the reported quota reset, without interrupting running Codex agents.">
+      <Section title="Automatic quota fallback" hint="When the preferred subscription reaches its quota, eligible work can continue on the other subscription.">
         <div className="card px-4">
           <Toggle
             checked={info.data?.codexFallbackEnabled ?? false}
+            disabled={fallbackSaving || !info.data}
             onChange={(v) => void setFallback(v)}
-            label="Use Codex when Claude reaches its quota"
-            hint="Requires an authenticated Codex CLI. Claude remains preferred; Codex runs only while every Claude account is limited. This does not transfer an in-progress Claude session."
+            label="Switch between Claude and Codex"
+            hint="Uses the other signed-in subscription when available and returns to the preferred one for future launches."
           />
           <div className="pb-3 text-[12px] text-faint">
-            {fallbackSaving ? 'Saving fallback setting…' :
-              info.data?.codexFallbackActive ? 'Active now: Claude is limited; new runs use Codex.' :
-              info.data?.codexFallbackEnabled ? 'Ready: Claude is preferred when available.' :
-              'Disabled: tasks wait for Claude instead of using Codex.'}
+            {fallbackSaving ? 'Saving fallback setting…' : info.data?.codexFallbackEnabled ? 'Subscription fallback enabled' : 'Subscription fallback disabled'}
           </div>
           <ErrorNote error={error} />
         </div>
       </Section>
+      <AiRoutingSettings />
       <Section title="Agent provider" hint="Select Claude or Codex for future agent runs. This is separate from choosing which Claude account to use. Running tasks are not changed.">
         <div className="card space-y-4 px-4 py-4">
           <Field label="Default agent provider">

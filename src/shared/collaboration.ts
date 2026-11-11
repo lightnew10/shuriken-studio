@@ -3,6 +3,8 @@
  * Never send provider OAuth tokens, account profiles, or arbitrary MCP requests in this protocol.
  */
 export const COLLAB_VERSION = 1 as const;
+export const COOP_VERSION = 2 as const;
+export const COOP_INVITE_MS = 10 * 60_000;
 export const COLLAB_RECONNECT_MS = 10 * 60_000;
 export const COLLAB_MAX_FRAME_BYTES = 64 * 1024;
 export const COLLAB_MAX_CHAT_CHARS = 2_000;
@@ -40,6 +42,9 @@ export interface CollabTaskSummary {
   role: string;
   status: string;
   updatedAt: string;
+  result?: string;
+  blocker?: string;
+  evidence?: Array<{ title: string; passed: boolean | null }>;
 }
 export interface CollabDirectorSummary {
   id: string;
@@ -64,6 +69,14 @@ export interface CollabRunSummary {
   status: 'starting' | 'running' | 'completed' | 'failed' | 'interrupted' | 'cancelled';
   startedAt: string;
   endedAt: string | null;
+  provider?: string;
+  model?: string;
+}
+export interface CollabProjectSummary {
+  name: string;
+  projectId: string | null;
+  taskCount: number;
+  waiting?: string;
 }
 export interface CollabRequestReceipt {
   id: string;
@@ -81,7 +94,7 @@ export type CollabPayload =
   | { kind: 'chat'; message: CollabChatEntry }
   | { kind: 'sync-request' }
   | { kind: 'history'; messages: CollabChatEntry[] }
-  | { kind: 'project-status'; name: string; projectId: string | null; taskCount: number; guestRequestsEnabled?: boolean }
+  | ({ kind: 'project-status'; guestRequestsEnabled?: boolean } & CollabProjectSummary)
   | { kind: 'task-batch'; tasks: CollabTaskSummary[]; reset?: boolean }
   | { kind: 'task-remove'; id: string }
   | { kind: 'director-batch'; messages: CollabDirectorSummary[]; reset?: boolean }
@@ -99,6 +112,16 @@ export type CollabServerFrame =
   | { v: 1; type: 'presence'; peers: CollabPeer[] }
   | { v: 1; type: 'payload'; from: CollabPeer; data: CollabPayload }
   | { v: 1; type: 'error'; reason: string };
+
+export type CoopClientFrame =
+  | { v: 2; type: 'hello'; role: CollabRole; name: string; secret: string; joinSecret?: string; resume?: string }
+  | { v: 2; type: 'leave' }
+  | { v: 2; type: 'secure'; to: string; packet: string };
+export type CoopServerFrame =
+  | { v: 2; type: 'welcome'; self: CollabPeer; peers: CollabPeer[] }
+  | { v: 2; type: 'presence'; peers: CollabPeer[] }
+  | { v: 2; type: 'secure'; from: CollabPeer; packet: string }
+  | { v: 2; type: 'error'; reason: string };
 
 export function validRelayUrl(value: string): string {
   const url = new URL(value.trim());
@@ -175,7 +198,12 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
           typeof t.role !== 'string' || t.role.length > 100 ||
           typeof t.status !== 'string' || t.status.length > 48 ||
           typeof t.updatedAt !== 'string' || !Number.isFinite(Date.parse(t.updatedAt))) return null;
-      tasks.push({ id: t.id, title: t.title, role: t.role, status: t.status, updatedAt: t.updatedAt });
+      tasks.push({ id: t.id, title: t.title, role: t.role, status: t.status, updatedAt: t.updatedAt,
+        ...(typeof t.result === 'string' ? { result: t.result.slice(0, 500) } : {}),
+        ...(typeof t.blocker === 'string' ? { blocker: t.blocker.slice(0, 400) } : {}),
+        ...(Array.isArray(t.evidence) ? { evidence: t.evidence.slice(0, 3).flatMap((item) =>
+          item && typeof item.title === 'string' && (item.passed === null || typeof item.passed === 'boolean')
+            ? [{ title: item.title.slice(0, 150), passed: item.passed }] : []) } : {}) });
     }
     return { kind: 'task-batch', tasks, ...(value.reset === true ? { reset: true } : {}) };
   }
@@ -235,7 +263,9 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
           typeof x.startedAt !== 'string' || !Number.isFinite(Date.parse(x.startedAt)) ||
           (x.endedAt !== null && (typeof x.endedAt !== 'string' || !Number.isFinite(Date.parse(x.endedAt))))) return null;
       runs.push({ id: x.id, taskId: x.taskId as string | null, role: x.role,
-        status: x.status as CollabRunSummary['status'], startedAt: x.startedAt, endedAt: x.endedAt as string | null });
+        status: x.status as CollabRunSummary['status'], startedAt: x.startedAt, endedAt: x.endedAt as string | null,
+        ...(typeof x.provider === 'string' ? { provider: x.provider.slice(0, 48) } : {}),
+        ...(typeof x.model === 'string' ? { model: x.model.slice(0, 160) } : {}) });
     }
     return { kind: 'run-batch', runs, ...(value.reset === true ? { reset: true } : {}) };
   }
@@ -253,7 +283,8 @@ export function parseCollabPayload(input: unknown, senderIsHost: boolean): Colla
       (value.projectId === null || typeof value.projectId === 'string' && value.projectId.length <= 100) &&
       typeof value.taskCount === 'number' && Number.isSafeInteger(value.taskCount) && value.taskCount >= 0)
     return { kind: 'project-status', name: value.name, projectId: value.projectId as string | null, taskCount: value.taskCount,
-      guestRequestsEnabled: value.guestRequestsEnabled === true };
+      guestRequestsEnabled: value.guestRequestsEnabled === true,
+      ...(typeof value.waiting === 'string' ? { waiting: value.waiting.slice(0, 300) } : {}) };
   return null;
 }
 export function truncateCollabHistory(messages: CollabChatEntry[]): CollabChatEntry[] {

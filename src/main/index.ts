@@ -258,6 +258,22 @@ class CoreSupervisor {
         this.child?.postMessage({ type: 'secret-value', id: msg.id, value });
         break;
       }
+      case 'coop-secret-set': {
+        let value: string | null = null;
+        try {
+          const key = msg.key, payload = msg.value;
+          if (typeof key === 'string' && /^coop-session:(guest|host:[a-zA-Z0-9_-]{1,100})$/.test(key) &&
+              (payload === null || (typeof payload === 'string' && payload.length <= 500_000)) && safeStorage.isEncryptionAvailable()) {
+            const all = readSecrets();
+            if (payload === null) delete all[key];
+            else all[key] = safeStorage.encryptString(payload).toString('base64');
+            writeFileSync(secretsFile, JSON.stringify(all));
+            value = 'saved';
+          }
+        } catch { mainLog('warn', 'Could not save collaboration pairing'); }
+        this.child?.postMessage({ type: 'secret-value', id: msg.id, value });
+        break;
+      }
     }
   }
 

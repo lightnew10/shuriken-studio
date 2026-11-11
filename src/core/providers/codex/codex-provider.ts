@@ -204,6 +204,8 @@ export class CodexProvider implements IAgentProvider {
         }
         const effort = effectiveCodexEffort(catalog.data?.find((entry) => (entry.model || entry.id) === model), req.effort);
         if (req.effort && effort !== req.effort) events.push({ type: 'notice', level: 'info', message: `Codex reasoning effort: ${effort} (${req.effort} is unavailable for ${model})` });
+        req.signal.throwIfAborted();
+        req.onDispatch?.();
         const response = await server.request('turn/start', { threadId, input, model, ...(effort ? { effort } : {}), ...(req.outputSchema ? { outputSchema: strictCodexSchema(req.outputSchema) } : {}) });
         turnId = response.turn.id; if (interrupted) await abort(); await finished;
         if (req.outputSchema) {

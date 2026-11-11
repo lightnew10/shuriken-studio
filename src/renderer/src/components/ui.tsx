@@ -89,7 +89,7 @@ export function Pill({ children, tone = 'neutral', className, title }: { childre
   );
 }
 
-export function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+export function Toggle({ checked, onChange, label, hint, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string; disabled?: boolean }) {
   return (
     <label className="flex cursor-pointer items-start justify-between gap-4 py-2">
       <span className="min-w-0">
@@ -98,9 +98,11 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
       </span>
       <button
         role="switch"
+        type="button"
+        disabled={disabled}
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={cx('relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors', checked ? 'bg-accent' : 'bg-surface3')}
+        className={cx('relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50', checked ? 'bg-accent' : 'bg-surface3')}
       >
         <span className={cx('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200', checked ? 'left-[18px]' : 'left-0.5')} />
       </button>

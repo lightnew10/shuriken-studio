@@ -119,6 +119,44 @@ CREATE INDEX usage_observations_time ON usage_observations(provider_id, observed
 ${KNOWLEDGE_SQL}
 `,
   },
+  {
+    version: 2,
+    name: 'model launch quotas and free API accounts',
+    sql: `
+CREATE TABLE model_daily_limits (
+  provider TEXT NOT NULL, model TEXT NOT NULL, maximum INTEGER NOT NULL CHECK(maximum >= 0),
+  PRIMARY KEY(provider, model)
+);
+CREATE TABLE model_launches (
+  id TEXT PRIMARY KEY, provider TEXT NOT NULL, model TEXT NOT NULL, local_day TEXT NOT NULL
+);
+CREATE INDEX model_launches_daily ON model_launches(provider, model, local_day);
+CREATE TABLE subscription_blocks (
+  usage_key TEXT PRIMARY KEY, until_ms INTEGER NOT NULL, recorded_ms INTEGER NOT NULL
+);
+CREATE TABLE free_api_keys (
+  id TEXT PRIMARY KEY, provider TEXT NOT NULL, label TEXT NOT NULL, position INTEGER NOT NULL,
+  enabled INTEGER NOT NULL, free_declared INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'unchecked',
+  catalog TEXT NOT NULL DEFAULT '[]', checked_at INTEGER
+);
+CREATE TABLE free_api_backoffs (
+  scope TEXT PRIMARY KEY, until_ms INTEGER NOT NULL, failures INTEGER NOT NULL
+);
+`,
+  },
+  {
+    version: 3,
+    name: 'collaboration inference quotas',
+    sql: `CREATE TABLE coop_inferences (
+      id TEXT PRIMARY KEY, key_id TEXT NOT NULL, local_day TEXT NOT NULL, state TEXT NOT NULL
+    );
+    CREATE INDEX coop_inferences_daily ON coop_inferences(key_id,local_day);
+    CREATE TABLE coop_grants (
+      room TEXT NOT NULL, key_id TEXT NOT NULL, offer_id TEXT NOT NULL UNIQUE, maximum INTEGER NOT NULL,
+      PRIMARY KEY(room,key_id)
+    );
+    CREATE TABLE coop_backoff (scope TEXT PRIMARY KEY, until_ms INTEGER NOT NULL);`,
+  },
 ];
 
 export const PROJECT_MIGRATIONS: Migration[] = [
@@ -502,5 +540,21 @@ CREATE INDEX IF NOT EXISTS cost_entries_at ON cost_entries(at);
     name: 'provider-session-contract',
     sql: `ALTER TABLE runs ADD COLUMN provider_session_meta TEXT;
 ALTER TABLE runs ADD COLUMN cost_known INTEGER NOT NULL DEFAULT 1;`,
+  },
+  {
+    version: 13,
+    name: 'run route and outcome',
+    sql: `ALTER TABLE runs ADD COLUMN provider_route TEXT;
+ALTER TABLE runs ADD COLUMN outcome_kind TEXT;`,
+  },
+  {
+    version: 14,
+    name: 'durable collaboration work',
+    sql: `CREATE TABLE coop_requests (id TEXT PRIMARY KEY, actor TEXT NOT NULL, task_id TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE coop_effects (
+      id TEXT PRIMARY KEY, task_id TEXT NOT NULL, run_id TEXT NOT NULL, tool TEXT NOT NULL, state TEXT NOT NULL,
+      result TEXT
+    );
+    CREATE INDEX coop_effects_task ON coop_effects(task_id, state);`,
   },
 ];

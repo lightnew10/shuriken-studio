@@ -26,6 +26,11 @@ export interface ProjectSummary {
 }
 
 export interface ProjectSettings {
+  coopEnabled?: boolean;
+  coopGuestRequests?: boolean;
+  coopPriority?: string[];
+  /** Remote providers allowed to receive this project's context and tool results. */
+  freeApiProviders?: Array<'groq' | 'openrouter'>;
   /** 'manual': never starts work on its own. 'supervised': runs, but escalations pause affected tasks. 'autonomous': runs continuously. */
   autonomy: 'manual' | 'supervised' | 'autonomous';
   maxConcurrentAgents: number;
