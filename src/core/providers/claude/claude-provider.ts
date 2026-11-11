@@ -29,6 +29,9 @@ export interface ClaudeProviderSettings {
   executable: 'bundled' | 'path' | string;
   models: Record<ModelTier, string>;
   appVersion: string;
+  selectedModel?: (tier: ModelTier) => string;
+  rejectModel?: (model: string) => string | null;
+  restrictModels?: () => boolean;
 }
 
 export const DEFAULT_CLAUDE_SETTINGS: Omit<ClaudeProviderSettings, 'appVersion'> = {
@@ -191,7 +194,7 @@ export class ClaudeProvider implements IAgentProvider {
   }
 
   modelForTier(tier: ModelTier): string {
-    return this.settings.models[tier];
+    return this.settings.selectedModel?.(tier) ?? this.settings.models[tier];
   }
 
   run(req: AgentRunRequest): AgentRunHandle {
@@ -205,6 +208,8 @@ export class ClaudeProvider implements IAgentProvider {
       executablePath: exe,
       clientApp: `shuriken/${this.settings.appVersion}`,
       modelForTier: (t) => this.modelForTier(t),
+      rejectModel: this.settings.rejectModel,
+      restrictModels: this.settings.restrictModels?.(),
     });
   }
 

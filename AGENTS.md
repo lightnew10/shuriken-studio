@@ -39,7 +39,7 @@ Préserver les modifications préexistantes et actualiser la documentation aprè
 - `npm test -- tests/ai-routing.test.ts` vérifie les quotas et la reprise sur réponses simulées. Le parcours réel Groq et OpenRouter requiert les clés de test et l'activation explicite décrites dans le guide.
 - `npx vitest run --config vitest.e2e.config.ts tests/e2e/codex.e2e.ts` : uniquement sur autorisation de consommer le quota réel, avec `CODEX_LIVE=1` et `CODEX_LIVE_MODEL` explicite. Les quatre scénarios utilisent un projet isolé.
 - `node node_modules/vitest/vitest.mjs run --config docs/audits/2026-11-11/probes.config.mjs` : sept reproductions d'audit réussies ; elles démontrent des défauts, pas la conformité du produit.
-- `cmd /c Lancer-Shuriken.bat --self-test` : réussie, sans mise à jour ni lancement.
+- `Lancer-Shuriken.bat` démarre la copie locale de `feature/codex-integration`. `--update` tente d’avancer la branche depuis le fork en fast-forward avant le démarrage. `cmd /d /c Lancer-Shuriken.bat --self-test` vérifie les prérequis et la branche.
 - Aucun script de lint dans `package.json`. Le typecheck du relay nécessite ses dépendances Cloudflare distinctes.
 
 Les restrictions du bac à sable ont bloqué DNS npm puis le renommage du cache Vitest ; les relances autorisées hors bac à sable ont permis l'installation et les tests. Ne pas attribuer ces erreurs au produit.

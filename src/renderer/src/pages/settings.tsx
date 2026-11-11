@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { CheckCircle2, CircleAlert, FolderOpen, KeyRound, LogIn, Plus, RefreshCw, Trash2, UserRound } from 'lucide-react';
 import { limitingUsage } from '@shared/usage';
 import type { PermissionMode } from '@shared/domain';
+import { CLAUDE_MODEL_FAMILIES, claudeModelFamily, type ModelBlocks, type SubscriptionProvider } from '@shared/subscription-models';
 import { OPEN_CLOUD_KEY, robloxId, type OpenCloudKeySource } from '@shared/roblox-keys';
 import { modeHint, type RobloxMode } from '../components/roblox-choice';
 import { TopBar } from '../components/topbar';
@@ -42,6 +43,8 @@ interface ProvidersInfo {
 
 type CodexTier = 'fast' | 'balanced' | 'deep';
 type CodexTierModels = Record<CodexTier, string>;
+const tierLabels = { fast: 'Fast — small tasks', balanced: 'Balanced — everyday tasks', deep: 'Deep — complex tasks' };
+const claudeModelNames = { haiku: 'Haiku', sonnet: 'Sonnet', opus: 'Opus' };
 interface CodexModelCatalog {
   models: Array<{ id: string; name: string; isDefault: boolean }>;
   selected: CodexTierModels;
@@ -298,26 +301,63 @@ function ProvidersSection() {
   };
   const ready = codex.data?.installed && codex.data?.signedIn;
   const catalog = useRpc<CodexModelCatalog>(ready ? 'providers.codex.models' : null);
+  const claudeModels = useRpc<CodexTierModels>('providers.claude.models');
+  const blocks = useRpc<ModelBlocks>('providers.modelBlocks');
+  const [codexBlock, setCodexBlock] = useState('');
   const [modelSaving, setModelSaving] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
-  const setTierModel = async (tier: CodexTier, id: string) => {
-    if (!catalog.data || modelSaving) return;
-    const next = { ...catalog.data.selected, [tier]: id };
+  const saveModelSetting = async (save: () => Promise<unknown>) => {
+    if (modelSaving) return;
     setModelSaving(true);
     setModelError(null);
     try {
-      await rpc('providers.codex.setModels', { models: next });
-      catalog.reload();
+      await save();
     } catch (e) {
       setModelError(e instanceof Error ? e.message : String(e));
     } finally {
       setModelSaving(false);
     }
   };
+  const setModelBlock = (provider: SubscriptionProvider, model: string, blocked: boolean) => saveModelSetting(async () => {
+    await rpc('providers.setModelBlocked', { provider, model, blocked });
+    blocks.reload();
+    if (provider === 'codex' && blocked) setCodexBlock('');
+  });
   const roles = info.data?.roleOptions ?? [];
   const selected = info.data?.default ?? 'claude';
   return (
     <>
+      <Section title="Claude models by task level" hint="Choose a Claude model family for each task level. This setting applies across projects on this PC.">
+        <div className="card space-y-3 px-4 py-4">
+          {(['fast', 'balanced', 'deep'] as const).map((tier) => {
+            const current = claudeModels.data?.[tier] ?? '';
+            const family = claudeModelFamily(current);
+            const blocked = !!family && blocks.data?.claude.includes(family);
+            const custom = current !== '' && !CLAUDE_MODEL_FAMILIES.some((id) => id === current);
+            return (
+              <Field key={tier} label={tierLabels[tier]}>
+                <select className={inputClass} value={current} aria-label={`Claude model for ${tier}`}
+                  disabled={!claudeModels.data || !blocks.data || modelSaving}
+                  onChange={(e) => {
+                    const model = e.target.value;
+                    void saveModelSetting(async () => {
+                      await rpc('providers.claude.setModel', { tier, model });
+                      claudeModels.reload();
+                    });
+                  }}>
+                  {!current && <option value="">Select a model</option>}
+                  {custom && <option value={current} disabled>{current}{blocked ? ' — blocked' : ''}</option>}
+                  {CLAUDE_MODEL_FAMILIES.map((id) => {
+                    const disabled = blocks.data?.claude.includes(id) === true;
+                    return <option key={id} value={id} disabled={disabled}>{claudeModelNames[id]}{disabled ? ' — blocked' : ''}</option>;
+                  })}
+                </select>
+              </Field>
+            );
+          })}
+          <ErrorNote error={claudeModels.error} />
+        </div>
+      </Section>
       <Section title="Codex account (ChatGPT)" hint="Connect the official Codex CLI to use your existing ChatGPT subscription alongside Claude. No OpenAI API key is required.">
         <div className={cx('card space-y-3 px-4 py-4', selected === 'codex' && 'ring-1 ring-accent/50')}>
           <div className="flex flex-wrap items-center gap-3">
@@ -378,21 +418,26 @@ function ProvidersSection() {
             const available = catalog.data?.models ?? [];
             const oldModel = current !== '' && !available.some((m) => m.id === current);
             return (
-              <Field key={tier} label={tier === 'fast' ? 'Fast — small tasks' : tier === 'balanced' ? 'Balanced — everyday tasks' : 'Deep — complex tasks'}>
+              <Field key={tier} label={tierLabels[tier]}>
                 <select
                   className={inputClass}
                   value={current}
-                  disabled={!ready || !catalog.data || catalog.loading || modelSaving}
-                  onChange={(e) => void setTierModel(tier, e.target.value)}
+                  disabled={!ready || !catalog.data || !blocks.data || catalog.loading || modelSaving}
+                  onChange={(e) => {
+                    const models = { ...catalog.data!.selected, [tier]: e.target.value };
+                    void saveModelSetting(async () => {
+                      await rpc('providers.codex.setModels', { models });
+                      catalog.reload();
+                    });
+                  }}
                   aria-label={`Codex model for ${tier}`}
                 >
                   <option value="">Select an explicit model (Astra excluded)</option>
-                  {oldModel && <option value={current} disabled>{current} — no longer in catalog</option>}
-                  {available.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}{model.isDefault ? ' (CLI recommendation)' : ''}
-                    </option>
-                  ))}
+                  {oldModel && <option value={current} disabled>{current} — {blocks.data?.codex.includes(current.toLowerCase()) ? 'blocked' : 'no longer in catalog'}</option>}
+                  {available.map((model) => {
+                    const blocked = blocks.data?.codex.includes(model.id.toLowerCase()) === true;
+                    return <option key={model.id} value={model.id} disabled={blocked}>{model.name}{blocked ? ' — blocked' : model.isDefault ? ' (CLI recommendation)' : ''}</option>;
+                  })}
                 </select>
               </Field>
             );
@@ -404,7 +449,36 @@ function ProvidersSection() {
             Astra is never selectable. To avoid an unverified CLI default model, select an explicit model for each tier.
           </p>
           {catalog.error && <ErrorNote error={catalog.error} />}
-          <ErrorNote error={modelError} />
+        </div>
+      </Section>
+      <Section title="Blocked models" hint="Applies to new runs, retries and provider switching. If a tier uses a blocked model, choose another model for that tier or allow a compatible provider fallback.">
+        <div className="card space-y-3 px-4 py-4">
+          {CLAUDE_MODEL_FAMILIES.map((id) => (
+            <Toggle key={id} label={`Block Claude ${claudeModelNames[id]}`}
+              checked={blocks.data?.claude.includes(id) === true} disabled={!blocks.data || modelSaving}
+              onChange={(blocked) => void setModelBlock('claude', id, blocked)} />
+          ))}
+          <div className="text-[12px] text-dim">Codex Astra is always blocked.</div>
+          <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
+            event.preventDefault();
+            void setModelBlock('codex', codexBlock, true);
+          }}>
+            <Field label="Codex model ID">
+              <input className={inputClass} list="codex-block-options" value={codexBlock} maxLength={128} onChange={(e) => setCodexBlock(e.target.value)} />
+              <datalist id="codex-block-options">
+                {catalog.data?.models.filter((model) => !blocks.data?.codex.includes(model.id.toLowerCase()))
+                  .map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
+              </datalist>
+            </Field>
+            <Button type="submit" size="sm" disabled={!blocks.data || modelSaving || !codexBlock.trim()}>Block model</Button>
+          </form>
+          {blocks.data?.codex.map((model) => (
+            <div key={model} className="flex items-center justify-between gap-2 text-[12px]">
+              <span className="break-all">{model}</span>
+              <Button size="sm" disabled={modelSaving} onClick={() => void setModelBlock('codex', model, false)}>Unblock</Button>
+            </div>
+          ))}
+          <ErrorNote error={modelError ?? blocks.error} />
         </div>
       </Section>
       <Section title="Codex run limits" hint="Limits apply to new runs. The token limit interrupts the run once Codex reports it reached.">

@@ -1,107 +1,73 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
-title Shuriken Studio - Update and launch
-pushd "%~dp0" || goto :failed
+title Shuriken Studio - Development launcher
+pushd "%~dp0" || exit /b 1
 
 set "BRANCH=feature/codex-integration"
-set "DIRTY="
-set "PREVIOUS_HEAD="
-set "NEED_INSTALL=0"
-
+set "NODE_MAJOR="
 echo.
-echo =============================================
-echo     SHURIKEN STUDIO - UPDATE + START
-echo =============================================
+echo === Shuriken Studio - Development launcher ===
 echo.
 
 where git >nul 2>&1 || goto :missing_git
 where node >nul 2>&1 || goto :missing_node
 where npm >nul 2>&1 || goto :missing_npm
-
 for /f "delims=" %%V in ('node -p "parseInt(process.versions.node,10)"') do set "NODE_MAJOR=%%V"
 if not defined NODE_MAJOR goto :missing_node
 if %NODE_MAJOR% LSS 24 goto :old_node
 
 git rev-parse --is-inside-work-tree >nul 2>&1 || goto :not_repo
-git remote get-url origin 2>nul | findstr /i /c:"lightnew10/shuriken-studio" >nul
-if errorlevel 1 goto :wrong_origin
+node -e "const branch=require('node:child_process').execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim(); process.exit(branch===process.env.BRANCH?0:1)" >nul 2>&1
+if errorlevel 1 goto :wrong_branch
+if /i "%~1"=="--self-test" goto :self_test
+if /i "%~1"=="--update" call :update
 
-rem Non-destructive preflight for CI: never fetch, merge or launch.
-if /i "%~1"=="--self-test" (
-    echo [OK] Windows launcher preflight passed.
-    popd
+if not exist "node_modules\.bin\electron-vite.cmd" goto :install
+if not exist "node_modules\.bin\install-electron.cmd" goto :install
+rem npm's hidden lockfile describes the installed tree. Optional packages may be platform-specific.
+node -e "const expected=require('./package-lock.json').packages, installed=require('./node_modules/.package-lock.json').packages; const same=(a,b)=>a&&a.version===b.version&&a.resolved===b.resolved&&a.integrity===b.integrity; if(Object.entries(expected).some(([name,p])=>name&&!p.optional&&!same(installed[name],p))||Object.entries(installed).some(([name,p])=>name&&!same(expected[name],p))) process.exit(1)" >nul 2>&1
+if errorlevel 1 goto :install
+goto :launch
+
+:install
+echo Installing project dependencies...
+call npm ci
+if errorlevel 1 goto :npm_failed
+
+:launch
+echo Starting Shuriken Studio on %BRANCH%...
+if /i "%~1"=="--update" (
+    call npm run dev
+) else (
+    call npm run dev -- %*
+)
+if errorlevel 1 goto :failed
+popd
+exit /b 0
+
+:update
+node -e "const status=require('node:child_process').execFileSync('git',['status','--porcelain','--untracked-files=normal']); process.exit(status.length===0?0:1)" >nul 2>&1
+if errorlevel 1 (
+    echo [WARNING] Local changes detected or Git status unavailable. Starting the current checkout.
     exit /b 0
 )
-
-rem Never overwrite local edits or untracked files.
-for /f "delims=" %%S in ('git status --porcelain --untracked-files=normal') do set "DIRTY=1"
-if defined DIRTY goto :dirty
-
-echo [1/6] Updating your fork branch...
-git fetch --prune origin
-if errorlevel 1 goto :failed
-git show-ref --verify --quiet "refs/remotes/origin/%BRANCH%"
-if errorlevel 1 goto :missing_branch
-
-git show-ref --verify --quiet "refs/heads/%BRANCH%"
+node -e "const url=require('node:child_process').execFileSync('git',['remote','get-url','origin'],{encoding:'utf8'}).trim(); process.exit(/^(https:\/\/github\.com\/|git@github\.com:)lightnew10\/shuriken-studio(?:\.git)?\/?$/i.test(url)?0:1)" >nul 2>&1
 if errorlevel 1 (
-    git switch --track -c "%BRANCH%" "origin/%BRANCH%"
-) else (
-    git switch "%BRANCH%"
+    echo [WARNING] Origin does not point to the Shuriken fork. Starting the current checkout.
+    exit /b 0
 )
-if errorlevel 1 goto :failed
-
-for /f "delims=" %%H in ('git rev-parse HEAD') do set "PREVIOUS_HEAD=%%H"
-
-echo.
-echo [2/6] Fetching official Shuriken updates...
-git remote get-url upstream >nul 2>&1
+echo Checking for updates on origin/%BRANCH%...
+git fetch --no-tags origin "refs/heads/%BRANCH%"
 if errorlevel 1 (
-    git remote add upstream "https://github.com/makofisch/shuriken-studio.git"
-    if errorlevel 1 goto :failed
+    echo [WARNING] Could not fetch the development branch. Starting the current checkout.
+    exit /b 0
 )
-git remote get-url upstream 2>nul | findstr /i /c:"makofisch/shuriken-studio" >nul
-if errorlevel 1 goto :wrong_upstream
+git merge --ff-only FETCH_HEAD
+if errorlevel 1 echo [WARNING] Could not fast-forward the development branch. Starting the current checkout.
+exit /b 0
 
-git fetch --prune upstream main
-if errorlevel 1 goto :failed
-
-echo.
-echo [3/6] Merging fork changes and official changes...
-git merge --no-edit "origin/%BRANCH%"
-if errorlevel 1 goto :merge_failed
-git merge --no-edit "upstream/main"
-if errorlevel 1 goto :merge_failed
-
-echo.
-echo [4/6] Checking dependencies...
-if not exist "node_modules\.package-lock.json" set "NEED_INSTALL=1"
-git diff --quiet "%PREVIOUS_HEAD%" HEAD -- package.json package-lock.json
-if errorlevel 1 set "NEED_INSTALL=1"
-
-if "%NEED_INSTALL%"=="1" (
-    echo Installing project packages...
-    call npm ci
-    if errorlevel 1 goto :npm_failed
-) else (
-    echo Dependencies are already installed.
-)
-
-echo.
-echo [5/6] Checking Codex CLI...
-where codex >nul 2>&1
-if errorlevel 1 (
-    echo Codex may already be provided by the desktop app. Check Settings - AI accounts.
-    echo If needed, install npm install -g @openai/codex@0.166.0 and sign in manually.
-)
-
-echo.
-echo [6/6] Starting Shuriken Studio...
-echo Close this window or press Ctrl+C to stop the dev server.
-echo.
-call npm run dev
-if errorlevel 1 goto :failed
-
+:self_test
+echo [OK] Windows launcher preflight passed.
 popd
 exit /b 0
 
@@ -118,35 +84,16 @@ goto :failed
 echo [ERROR] Shuriken Studio requires Node.js 24 or later.
 goto :failed
 :not_repo
-echo [ERROR] Run this BAT inside a Git clone, not a downloaded ZIP.
+echo [ERROR] Run this BAT inside the Shuriken Git checkout.
 goto :failed
-:wrong_origin
-echo [ERROR] Origin is not your lightnew10/shuriken-studio fork.
-goto :failed
-:wrong_upstream
-echo [ERROR] The upstream remote does not point to makofisch/shuriken-studio.
-echo Check it manually: git remote -v
-goto :failed
-:missing_branch
-echo [ERROR] The feature/codex-integration branch was not found on origin.
-goto :failed
-:dirty
-echo [ERROR] Uncommitted or untracked files were found.
-echo Commit, move or back up these files, then retry.
-git status --short
-goto :failed
-:merge_failed
-echo [ERROR] A merge could not be completed safely.
-git merge --abort >nul 2>&1
-echo Your local commits are preserved. Resolve the upstream changes manually.
+:wrong_branch
+echo [ERROR] Switch to %BRANCH% before launching Shuriken Studio.
 goto :failed
 :npm_failed
-echo [ERROR] npm ci failed. Check npm output above.
-goto :failed
+echo [ERROR] npm ci failed. Check the npm output above.
 :failed
 echo.
-echo Update or launch stopped. Nothing was force-reset or auto-pushed.
-echo Press any key to close this window.
+echo Launch stopped. Press any key to close this window.
 pause >nul
 popd
 exit /b 1

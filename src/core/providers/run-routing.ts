@@ -40,6 +40,8 @@ export class RunRouting {
       if (isSubscription(provider.id)) {
         try { model = provider.modelForTier(tier); } catch { /* Missing explicit model choice. */ }
         if (!model) { reasons.push(`Choose a ${tier} model for ${provider.displayName}`); continue; }
+        const rejected = this.providers.modelRejection(provider.id, model);
+        if (rejected) { reasons.push(rejected); continue; }
         const quota = this.quotas.status(provider.id, model);
         if (!quota.available) {
           reasons.push(`${model}: daily launch limit reached`);

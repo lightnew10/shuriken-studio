@@ -4,6 +4,7 @@ import { isAllowedCodexModel } from './codex/codex-models';
 import type { Store } from '../db/store';
 import { pj, j } from '../db/store';
 import { nowIso } from '@shared/ids';
+import { CLAUDE_MODEL_FAMILIES, claudeModelFamily, type ModelBlocks, type SubscriptionProvider } from '@shared/subscription-models';
 
 export type CodexTierModels = Record<ModelTier, string>;
 
@@ -27,6 +28,39 @@ export class ProviderRegistry {
   private claudeExhaustedAndCodexReady: (() => boolean) | null = null;
 
   constructor(private readonly global: Store) {}
+
+  modelBlocks(): ModelBlocks {
+    const raw = this.global.get<{ value: string }>("SELECT value FROM settings WHERE key = 'provider.modelBlocks'");
+    return pj<ModelBlocks>(raw?.value, { claude: [], codex: [] });
+  }
+
+  setModelBlocked(provider: SubscriptionProvider, id: string, blocked: boolean): ModelBlocks {
+    if ((provider !== 'claude' && provider !== 'codex') || typeof id !== 'string' || typeof blocked !== 'boolean')
+      throw new Error('Invalid model restriction');
+    const key = id.trim().toLowerCase();
+    if (provider === 'claude' ? !CLAUDE_MODEL_FAMILIES.some((family) => family === key) : !isAllowedCodexModel(key))
+      throw new Error('Choose a Claude family or an explicit Codex model. Astra is always blocked.');
+    return this.global.tx(() => {
+      const current = this.modelBlocks();
+      const models = new Set(current[provider]);
+      if (blocked) models.add(key);
+      else models.delete(key);
+      const next = { ...current, [provider]: [...models].sort() };
+      this.global.run("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('provider.modelBlocks', ?, ?)", [j(next), nowIso()]);
+      return next;
+    });
+  }
+
+  modelRejection(provider: SubscriptionProvider, model: string): string | null {
+    const blocked = this.modelBlocks()[provider];
+    if (provider === 'codex') {
+      if (!isAllowedCodexModel(model) || blocked.includes(model.toLowerCase())) return `Codex model ${model} is blocked`;
+    } else if (blocked.length) {
+      const family = claudeModelFamily(model);
+      if (!family || blocked.includes(family)) return `Claude model ${model} is blocked by the model policy`;
+    }
+    return null;
+  }
 
   register(p: IAgentProvider): void {
     this.providers.set(p.id, p);

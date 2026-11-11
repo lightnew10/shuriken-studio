@@ -22,7 +22,7 @@ export class CodexProvider implements IAgentProvider {
   readonly adapterVersion = '2.0.0';
   readonly testedVersions = ['0.166.0'];
   executeCommand = executeCodexCommand;
-  constructor(private readonly selectedModel: (tier: ModelTier) => string = () => '', private readonly limits: () => { maxDurationMs: number; maxTokens: number } = () => ({ maxDurationMs: CODEX_RUN_LIMITS.durationMs, maxTokens: CODEX_RUN_LIMITS.maxTokens }), private readonly observeProcess?: (pid: number) => void) {}
+  constructor(private readonly selectedModel: (tier: ModelTier) => string = () => '', private readonly limits: () => { maxDurationMs: number; maxTokens: number } = () => ({ maxDurationMs: CODEX_RUN_LIMITS.durationMs, maxTokens: CODEX_RUN_LIMITS.maxTokens }), private readonly observeProcess?: (pid: number) => void, private readonly rejectModel?: (model: string) => string | null) {}
   async usage(): Promise<unknown> {
     const server = new CodexAppServer();
     try { await server.initialize(); return (await server.request('account/rateLimits/read')).rateLimits ?? null; }
@@ -122,6 +122,11 @@ export class CodexProvider implements IAgentProvider {
         if (req.maxBudgetUsd !== undefined) { errorKind = 'budget'; throw new Error('A strict USD budget cannot be guaranteed by a ChatGPT subscription.'); }
         const model = req.model ?? this.modelForTier(req.modelTier);
         if (!model || model === 'default' || !isAllowedCodexModel(model)) throw new Error('An explicit non-Astra model is required');
+        const checkModel = () => {
+          const rejected = this.rejectModel?.(model);
+          if (rejected) throw new Error(rejected);
+        };
+        checkModel();
         const version = codexVersion(), overrides = await isolatedCodexOverrides(undefined, req.cwd);
         const allowedServers: Array<{ name: string; url: string; bearer: string }> = [], env: Record<string, string> = {};
         for (const [index, s] of req.toolServers.entries()) {
@@ -206,6 +211,7 @@ export class CodexProvider implements IAgentProvider {
         if (req.effort && effort !== req.effort) events.push({ type: 'notice', level: 'info', message: `Codex reasoning effort: ${effort} (${req.effort} is unavailable for ${model})` });
         req.signal.throwIfAborted();
         req.onDispatch?.();
+        checkModel();
         const response = await server.request('turn/start', { threadId, input, model, ...(effort ? { effort } : {}), ...(req.outputSchema ? { outputSchema: strictCodexSchema(req.outputSchema) } : {}) });
         turnId = response.turn.id; if (interrupted) await abort(); await finished;
         if (req.outputSchema) {

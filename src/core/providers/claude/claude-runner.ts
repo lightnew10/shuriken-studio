@@ -7,6 +7,8 @@ export interface ClaudeRunnerConfig {
   executablePath: string | null;
   clientApp: string;
   modelForTier: (tier: AgentRunRequest['modelTier']) => string;
+  rejectModel?: (model: string) => string | null;
+  restrictModels?: boolean;
 }
 
 /** Cost and tokens as the SDK counts them: totals for the whole session, which run on across a resumed one. */
@@ -188,13 +190,28 @@ async function readSessionUsage(q: UsageReader, ms: number): Promise<Totals | nu
  */
 export function runClaude(req: AgentRunRequest, cfg: ClaudeRunnerConfig): AgentRunHandle {
   const out = new AsyncQueue<AgentEvent>();
+  const model = req.model ?? cfg.modelForTier(req.modelTier);
+  const rejected = cfg.rejectModel?.(model);
+  if (rejected) {
+    out.push(failure('execution', rejected, Date.now()));
+    out.close();
+    return { events: out, interrupt: async () => {} };
+  }
   const abort = new AbortController();
   const onAbort = () => abort.abort();
   if (req.signal.aborted) abort.abort();
   else req.signal.addEventListener('abort', onAbort, { once: true });
 
   const stderrTail: string[] = [];
-  const builtin = claudeToolsFor(req.builtinTools);
+  const builtin = claudeToolsFor(cfg.restrictModels ? req.builtinTools.filter((tool) => tool !== 'subagents') : req.builtinTools);
+  const env: NodeJS.ProcessEnv = { ...process.env, DISABLE_AUTOUPDATER: '1', CLAUDE_AGENT_SDK_CLIENT_APP: cfg.clientApp, ...(req.env ?? {}) };
+  if (cfg.restrictModels) {
+    for (const key of Object.keys(env)) {
+      if (/^(ANTHROPIC_(MODEL|SMALL_FAST_MODEL|DEFAULT_.*_MODEL)|CLAUDE_CODE_SUBAGENT_MODEL)$/i.test(key)) delete env[key];
+    }
+    env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = '1';
+    env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
+  }
   const mcpServers: NonNullable<Options['mcpServers']> = {};
   for (const s of req.toolServers) mcpServers[s.name] = { type: 'http', url: s.url, headers: s.headers };
 
@@ -208,7 +225,11 @@ export function runClaude(req: AgentRunRequest, cfg: ClaudeRunnerConfig): AgentR
   const options: Options = {
     cwd: req.cwd,
     additionalDirectories: req.additionalDirectories,
-    model: req.model ?? cfg.modelForTier(req.modelTier),
+    model,
+    ...(cfg.restrictModels ? {
+      settings: { availableModels: [model], enforceAvailableModels: true },
+      disallowedTools: ['Agent', 'Task'],
+    } : {}),
     effort: req.effort,
     systemPrompt: { type: 'preset', preset: 'claude_code', append: req.instructions },
     tools: builtin,
@@ -223,7 +244,7 @@ export function runClaude(req: AgentRunRequest, cfg: ClaudeRunnerConfig): AgentR
     abortController: abort,
     resume: req.resumeSessionId ?? undefined,
     // DISABLE_AUTOUPDATER: the program Shuriken ships never replaces itself (claude-provider.ts, NO_SELF_UPDATE).
-    env: { ...process.env, DISABLE_AUTOUPDATER: '1', CLAUDE_AGENT_SDK_CLIENT_APP: cfg.clientApp, ...(req.env ?? {}) },
+    env,
     stderr: (d) => {
       stderrTail.push(d);
       if (stderrTail.length > 40) stderrTail.shift();
@@ -247,7 +268,7 @@ export function runClaude(req: AgentRunRequest, cfg: ClaudeRunnerConfig): AgentR
   };
   if (cfg.executablePath) options.pathToClaudeCodeExecutable = cfg.executablePath;
   if (req.outputSchema) options.outputFormat = { type: 'json_schema', schema: req.outputSchema };
-  if (req.subagents?.length) {
+  if (!cfg.restrictModels && req.subagents?.length) {
     options.agents = Object.fromEntries(
       req.subagents.map((s) => [
         s.name,

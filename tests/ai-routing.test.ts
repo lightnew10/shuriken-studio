@@ -8,6 +8,8 @@ import { ModelQuotas } from '../src/core/providers/model-quotas';
 import { eligibleFreeModels, FreeApiAccounts } from '../src/core/providers/free-api';
 import { RunRouting } from '../src/core/providers/run-routing';
 import { ProviderRegistry } from '../src/core/providers/provider-registry';
+import { CodexProvider } from '../src/core/providers/codex/codex-provider';
+import { runClaude } from '../src/core/providers/claude/claude-runner';
 import type { AgentEvent, AgentRunRequest } from '../src/core/providers/types';
 import { AccountService } from '../src/core/accounts/account-service';
 import { UsageTracker } from '../src/core/orchestrator/usage-tracker';
@@ -176,6 +178,46 @@ it('respects both switches independently, project authorization, and bidirection
     quotas.set(preferred, 'fake-fast', null);
     expect(chosen()).toBe(preferred);
   }
+  vi.spyOn(providers.get('claude')!, 'modelForTier').mockReturnValue('claude-opus-4-8');
+  vi.spyOn(providers.get('codex')!, 'modelForTier').mockReturnValue('gpt-test-codex');
+  providers.setAssignments({ default: 'claude', roles: {} });
+  providers.setCodexFallbackEnabled(true);
+  providers.setModelBlocked('claude', 'opus', true);
+  expect(chosen()).toBe('codex');
+  providers.setModelBlocked('codex', 'GPT-test-Codex', true);
+  expect(chosen()).toBe('groq');
+  freeEnabled = false;
+  expect(pick()).toMatchObject({ ok: false, reason: expect.stringMatching(/opus.*blocked.*gpt-test-codex.*blocked/) });
+  expect(new ProviderRegistry(db).modelRejection('claude', 'claude-3-opus-20240229')).toContain('blocked');
+  expect(providers.modelRejection('claude', 'claude-sonnet-4-6')).toBeNull();
+  expect(providers.modelRejection('codex', 'gpt-astra')).toContain('blocked');
+  providers.setModelBlocked('claude', 'opus', false);
+  expect(chosen()).toBe('claude');
+});
+
+it('refuses a blocked explicit model on a resumed provider request before dispatch', async () => {
+  const db = new Store(':memory:', GLOBAL_MIGRATIONS);
+  cleanups.push(() => db.close());
+  const providers = new ProviderRegistry(db);
+  const onDispatch = vi.fn();
+  const request: AgentRunRequest = {
+    runId: 'fixture', role: 'fixture', cwd: process.cwd(), instructions: '', prompt: 'synthetic',
+    modelTier: 'deep', resumeSessionId: 'previous-session', toolServers: [], builtinTools: [],
+    signal: new AbortController().signal, permission: async () => ({ allow: false, message: 'fixture' }), onDispatch,
+  };
+  providers.setModelBlocked('claude', 'opus', true);
+  providers.setModelBlocked('codex', 'gpt-test-codex', true);
+  const claude = runClaude({ ...request, model: 'claude-opus-4-8' }, {
+    clientApp: 'fixture', executablePath: null, modelForTier: () => 'sonnet',
+    rejectModel: (model) => providers.modelRejection('claude', model), restrictModels: true,
+  });
+  const codex = new CodexProvider(() => 'gpt-other', undefined, undefined, (model) => providers.modelRejection('codex', model));
+  for (const handle of [claude, codex.run({ ...request, model: 'gpt-test-codex' })]) {
+    const events: AgentEvent[] = [];
+    for await (const event of handle.events) events.push(event);
+    expect(events).toEqual([expect.objectContaining({ type: 'completed', ok: false, error: expect.stringContaining('blocked') })]);
+  }
+  expect(onDispatch).not.toHaveBeenCalled();
 });
 
 it('automatically resumes a task on another API after a shared quota, preserving the first write', async () => {

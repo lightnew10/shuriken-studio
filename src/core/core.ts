@@ -326,8 +326,14 @@ export class Core {
       });
     });
     const providers = opts.providers ?? [
-      new ClaudeProvider({ ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion }),
-      new CodexProvider((tier) => this.providers.codexModels()[tier], () => this.settingJson('provider.codex.limits', { maxDurationMs: 20 * 60_000, maxTokens: 200_000 })),
+      new ClaudeProvider({
+        ...DEFAULT_CLAUDE_SETTINGS, ...pj(this.setting('claude'), {}), appVersion: opts.appVersion,
+        selectedModel: (tier) => this.claudeModels()[tier],
+        rejectModel: (model) => this.providers.modelRejection('claude', model),
+        restrictModels: () => this.providers.modelBlocks().claude.length > 0,
+      }),
+      new CodexProvider((tier) => this.providers.codexModels()[tier], () => this.settingJson('provider.codex.limits', { maxDurationMs: 20 * 60_000, maxTokens: 200_000 }), undefined,
+        (model) => this.providers.modelRejection('codex', model)),
     ];
     for (const p of providers) this.providers.register(p);
     this.usage = new UsageTracker(this.global, this.bus);
@@ -991,6 +997,11 @@ export class Core {
 
   setSetting(key: string, value: string): void {
     this.global.run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)', [key, value, nowIso()]);
+  }
+
+  claudeModels(): typeof DEFAULT_CLAUDE_SETTINGS.models {
+    const legacy = this.settingJson<{ models?: Partial<typeof DEFAULT_CLAUDE_SETTINGS.models> }>('claude', {});
+    return { ...DEFAULT_CLAUDE_SETTINGS.models, ...legacy.models, ...this.settingJson('provider.claudeModels', {}) };
   }
 
   // ─── Projects ──────────────────────────────────────────────────────────────

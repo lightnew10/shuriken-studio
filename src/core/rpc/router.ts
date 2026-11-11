@@ -54,6 +54,7 @@ import { forgeGpuRpc } from '../ui/forge/forge-gpu-rpc';
 import { buildCost, costOf } from '../costs/build-cost';
 import { loadCodexModels, isAllowedCodexModel } from '../providers/codex/codex-models';
 import type { CodexTierModels } from '../providers/provider-registry';
+import { CLAUDE_MODEL_FAMILIES, type SubscriptionProvider } from '@shared/subscription-models';
 
 /** The dock copilot a chat channel belongs to ("copilot:animation" → animation); null for the director's. */
 const copilotOf = (channel: unknown): CopilotId | null => {
@@ -580,6 +581,23 @@ export function createRouter(core: Core): Record<string, Handler> {
       core.orchestrator.kick();
       return core.providers.assignments();
     },
+    'providers.claude.models': () => core.claudeModels(),
+    'providers.claude.setModel': ({ tier, model }: { tier: ModelTier; model: string }) => {
+      if (!['fast', 'balanced', 'deep'].includes(tier) || !CLAUDE_MODEL_FAMILIES.some((id) => id === model))
+        throw new Error('Select a Claude model for a valid task level.');
+      const rejected = core.providers.modelRejection('claude', model);
+      if (rejected) throw new Error(rejected);
+      const next = { ...core.claudeModels(), [tier]: model };
+      core.setSettingJson('provider.claudeModels', next);
+      core.orchestrator.kick();
+      return next;
+    },
+    'providers.modelBlocks': () => core.providers.modelBlocks(),
+    'providers.setModelBlocked': ({ provider, model, blocked }: { provider: SubscriptionProvider; model: string; blocked: boolean }) => {
+      const next = core.providers.setModelBlocked(provider, model, blocked);
+      core.orchestrator.kick();
+      return next;
+    },
     'providers.codex.models': async () => {
       const provider = core.providers.get('codex');
       if (!provider || !(await provider.auth()).authenticated)
@@ -594,12 +612,18 @@ export function createRouter(core: Core): Record<string, Handler> {
       // Do not accept unknown models, including manually crafted IPC requests.
       const catalog = await loadCodexModels();
       const allowed = new Set(catalog.map((model) => model.id));
+      const current = core.providers.codexModels();
       for (const tier of ['fast', 'balanced', 'deep'] as const) {
         const chosen = models[tier];
+        if (chosen === current[tier]) continue;
         if (chosen !== '' && (!isAllowedCodexModel(chosen) || !allowed.has(chosen)))
           throw new Error('Unsupported or excluded Codex model for ' + tier + ': ' + chosen);
+        const rejected = chosen && core.providers.modelRejection('codex', chosen);
+        if (rejected) throw new Error(rejected);
       }
-      return core.providers.setCodexModels(models);
+      const next = core.providers.setCodexModels(models);
+      core.orchestrator.kick();
+      return next;
     },
     'providers.codex.status': async () => {
       const provider = core.providers.get('codex');
